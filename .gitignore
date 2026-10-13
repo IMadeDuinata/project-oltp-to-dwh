@@ -1,0 +1,30 @@
+﻿# Virtual Environment
+venv/
+env/
+.venv/
+
+# Environment variables (RAHASIA — jangan di-commit!)
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Data (CSV besar — tidak di-commit)
+data/*.csv
+data/*.zip

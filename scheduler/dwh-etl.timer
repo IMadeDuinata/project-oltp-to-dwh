@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Olist DWH ETL Daily at 02:00 AM
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+Unit=dwh-etl.service
+
+[Install]
+WantedBy=timers.target

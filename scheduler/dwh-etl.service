@@ -1,0 +1,14 @@
+[Unit]
+Description=Olist DWH Daily ETL Pipeline Job
+After=network.target mysql.service docker.service
+
+[Service]
+Type=oneshot
+User=lann
+WorkingDirectory=/home/lann/Projects/project-oltp-to-dwh
+ExecStart=/home/lann/Projects/project-oltp-to-dwh/.venv/bin/python /home/lann/Projects/project-oltp-to-dwh/etl/run_etl.py --incremental
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

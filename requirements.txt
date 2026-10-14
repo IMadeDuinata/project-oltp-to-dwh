@@ -1,4 +1,7 @@
-﻿pandas
+pandas
 sqlalchemy
 pymysql
 cryptography
+python-dotenv
+apscheduler
+pytest

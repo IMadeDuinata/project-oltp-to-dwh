@@ -132,3 +132,27 @@ CREATE TABLE IF NOT EXISTS fact_order_delivery (
     CONSTRAINT fk_fod_ddate    FOREIGN KEY (delivered_date_sk) REFERENCES dim_date(date_sk),
     CONSTRAINT fk_fod_edate    FOREIGN KEY (estimated_date_sk) REFERENCES dim_date(date_sk)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Fact 3: fact_order_payments
+-- Grain: 1 baris per (order_id, payment_sequential)
+-- Measures: payment_value, payment_installments
+-- FK: dim_payment_type, dim_date (purchase), dim_customer
+CREATE TABLE IF NOT EXISTS fact_order_payments (
+    payment_fact_sk        BIGINT AUTO_INCREMENT PRIMARY KEY,
+    order_id               VARCHAR(50) NOT NULL,
+    payment_sequential     INT NOT NULL,
+    customer_sk            INT NOT NULL,
+    payment_type_sk        INT NOT NULL,
+    purchase_date_sk       INT NOT NULL,
+    payment_value          DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    payment_installments   INT NOT NULL DEFAULT 1,
+    INDEX idx_fop_order    (order_id),
+    INDEX idx_fop_cust     (customer_sk),
+    INDEX idx_fop_paytype  (payment_type_sk),
+    INDEX idx_fop_date     (purchase_date_sk),
+    UNIQUE KEY uk_fop_grain (order_id, payment_sequential),
+    CONSTRAINT fk_fop_customer FOREIGN KEY (customer_sk)       REFERENCES dim_customer(customer_sk),
+    CONSTRAINT fk_fop_paytype  FOREIGN KEY (payment_type_sk)   REFERENCES dim_payment_type(payment_type_sk),
+    CONSTRAINT fk_fop_date     FOREIGN KEY (purchase_date_sk)  REFERENCES dim_date(date_sk)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+

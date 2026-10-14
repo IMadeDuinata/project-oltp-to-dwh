@@ -1,131 +1,476 @@
-# 🛒 Olist E-Commerce — OLTP to DWH Pipeline
+# 🛒 Olist E-Commerce: Production-Grade OLTP to DWH Pipeline
 
-End-to-end data engineering project: load Brazilian E-Commerce (Olist) dataset from CSV into MySQL OLTP, transform into a Star Schema Data Warehouse, and generate business insights.
+Pipeline data engineering end-to-end yang memuat dataset e-commerce Brasil (Olist) dari file CSV mentah ke dalam MySQL OLTP ternormalisasi (3NF), melakukan proses ekstraksi, pembersihan data (*cleansing* multi-teknik), transformasi Star Schema, pemuatan data transaksional yang *idempotent*, otomasi penjadwalan (*scheduler*), serta visualisasi analitik bisnis tingkat lanjut.
 
-## 📊 Project Overview
+---
 
-Pipeline data yang mengubah dataset e-commerce mentah (113,390 baris) menjadi Data Warehouse siap analisis menggunakan **Star Schema**.
+## 📌 Daftar Isi
+1. [Arsitektur Sistem](#-arsitektur-sistem)
+2. [Desain Data & Skema ERD](#-desain-data--skema-erd)
+   - [ERD OLTP 3NF](#erd-oltp-3nf-database-oltp_olist)
+   - [ERD DWH Star Schema](#erd-dwh-star-schema-database-dwh_olist)
+3. [Tabel Teknik Cleansing Data](#-tabel-teknik-cleansing-data)
+4. [Keputusan Desain Data Warehouse](#-keputusan-desain-data-warehouse)
+5. [Struktur Proyek](#-struktur-proyek)
+6. [Instalasi & Setup](#-instalasi--setup)
+7. [Urutan Menjalankan Pipeline](#-urutan-menjalankan-pipeline)
+8. [Panduan Scheduler](#-panduan-scheduler)
+9. [Pengujian Otomatis (Testing)](#-pengujian-otomatis-testing)
+10. [Business Insights & Hasil Analitik](#-business-insights--hasil-analitik)
 
-## 🏗️ Architecture
+---
 
+## 🏗️ Arsitektur Sistem
+
+```mermaid
+flowchart TD
+    subgraph Ingestion["1. Ingestion & Landing"]
+        RAW["data/raw/*.csv"] --> STG["oltp/load_staging.py"]
+        INJ["inject_dirty_data.py"] -.-> STG
+        STG --> OLIST_RAW["oltp_olist.olist_raw (Staging Table)"]
+    end
+
+    subgraph OLTP["2. OLTP Normalized (3NF)"]
+        OLIST_RAW --> SPLIT["oltp/split_to_oltp.py"]
+        SPLIT --> T_CUST["customers"]
+        SPLIT --> T_PROD["products"]
+        SPLIT --> T_SELL["sellers"]
+        SPLIT --> T_ORD["orders"]
+        SPLIT --> T_ITEM["order_items"]
+        SPLIT --> T_PAY["order_payments"]
+    end
+
+    subgraph ETL["3. Modular ETL Engine (etl/)"]
+        EXT["etl/extract.py"] --> CLN["etl/clean.py"]
+        CLN --> |Data Bersih| TRF["etl/transform.py"]
+        CLN --> |Baris Ditolak| REJ["dwh_olist.rejected_rows (Quarantine)"]
+        TRF --> LOAD["etl/load.py"]
+        LOAD --> LOG["dwh_olist.etl_log (Audit Log)"]
+        LOAD --> WM["dwh_olist.etl_watermark"]
+        LOAD --> REP["reports/data_quality_report_latest.md"]
+    end
+
+    subgraph DWH["4. Data Warehouse (dwh_olist) - Star Schema"]
+        LOAD --> D_CUST["dim_customer (SCD Type 2)"]
+        LOAD --> D_PROD["dim_product"]
+        LOAD --> D_SELL["dim_seller"]
+        LOAD --> D_PAY["dim_payment_type"]
+        LOAD --> D_DATE["dim_date (Role-Playing)"]
+        LOAD --> F_ITEM["fact_order_items (Grain: Order + Item)"]
+        LOAD --> F_DELIV["fact_order_delivery (Grain: Order)"]
+    end
+
+    subgraph Serving["5. Analytics & Scheduling"]
+        F_ITEM --> ANL["etl/analytics.py"]
+        F_DELIV --> ANL
+        SCHED["scheduler/run_scheduler.py<br/>(APScheduler & systemd)"] --> |Orkestrasi Berkala| ETL
+    end
+
+    T_CUST & T_PROD & T_SELL & T_ORD & T_ITEM & T_PAY --> EXT
 ```
-data/Olist.csv  →  [load_oltp.py]  →  oltp_olist.olist_raw
-                                            ↓
-                                    [transform_oltp_to_dwh.py]
-                                            ↓
-                                    dwh_olist (Star Schema)
-                                            ↓
-                                    [analytics.py]
-                                            ↓
-                                        📈 Insights
+
+---
+
+## 🗄️ Desain Data & Skema ERD
+
+### ERD OLTP 3NF (Database: `oltp_olist`)
+
+Skema OLTP dirancang dalam bentuk Third Normal Form (3NF) dengan entitas terpisah, tipe data baku (`INT`, `DECIMAL`, `DATETIME`), serta constraints yang sengaja dilonggarkan agar data mentah dan anomali dapat tersimpan di OLTP tanpa gagal, sebelum dibersihkan oleh pipeline ETL.
+
+```mermaid
+erDiagram
+    CUSTOMERS ||--o{ ORDERS : "places"
+    ORDERS ||--|{ ORDER_ITEMS : "contains"
+    ORDERS ||--|{ ORDER_PAYMENTS : "paid_by"
+    PRODUCTS ||--o{ ORDER_ITEMS : "ordered_in"
+    SELLERS ||--o{ ORDER_ITEMS : "fulfills"
+
+    CUSTOMERS {
+        varchar customer_id PK
+        varchar customer_unique_id
+        varchar customer_zip_code_prefix
+        varchar customer_city
+        varchar customer_state
+    }
+
+    ORDERS {
+        varchar order_id PK
+        varchar customer_id FK
+        varchar order_status
+        datetime order_purchase_timestamp
+        datetime order_approved_at
+        datetime order_delivered_carrier_date
+        datetime order_delivered_customer_date
+        datetime order_estimated_delivery_date
+    }
+
+    ORDER_ITEMS {
+        bigint item_internal_id PK
+        varchar order_id FK
+        int order_item_id
+        varchar product_id FK
+        varchar seller_id FK
+        datetime shipping_limit_date
+        decimal price
+        decimal freight_value
+    }
+
+    ORDER_PAYMENTS {
+        bigint payment_internal_id PK
+        varchar order_id FK
+        int payment_sequential
+        varchar payment_type
+        int payment_installments
+        decimal payment_value
+    }
+
+    PRODUCTS {
+        varchar product_id PK
+        varchar product_category_name
+        int product_name_length
+        int product_description_length
+        int product_photos_qty
+        decimal product_weight_g
+        decimal product_length_cm
+        decimal product_height_cm
+        decimal product_width_cm
+    }
+
+    SELLERS {
+        varchar seller_id PK
+        varchar seller_zip_code_prefix
+        varchar seller_city
+        varchar seller_state
+    }
 ```
 
-## 📁 Project Structure
+---
+
+### ERD DWH Star Schema (Database: `dwh_olist`)
+
+Star Schema memiliki **5 tabel dimensi** dan **2 tabel fakta** independen untuk membedakan grain metrik keuangan tingkat item dan metrik logistik pengiriman tingkat order.
+
+```mermaid
+erDiagram
+    DIM_CUSTOMER ||--o{ FACT_ORDER_ITEMS : "purchased_by"
+    DIM_PRODUCT ||--o{ FACT_ORDER_ITEMS : "ordered_item"
+    DIM_SELLER ||--o{ FACT_ORDER_ITEMS : "sold_by"
+    DIM_DATE ||--o{ FACT_ORDER_ITEMS : "purchase_date"
+    DIM_DATE ||--o{ FACT_ORDER_ITEMS : "shipping_limit_date"
+
+    DIM_CUSTOMER ||--o{ FACT_ORDER_DELIVERY : "delivered_to"
+    DIM_DATE ||--o{ FACT_ORDER_DELIVERY : "order_purchase_date"
+    DIM_DATE ||--o{ FACT_ORDER_DELIVERY : "order_delivered_date"
+    DIM_DATE ||--o{ FACT_ORDER_DELIVERY : "order_estimated_date"
+
+    DIM_CUSTOMER {
+        int customer_sk PK
+        varchar customer_id
+        varchar customer_unique_id
+        varchar customer_zip_code
+        varchar customer_city
+        varchar customer_state
+        datetime valid_from
+        datetime valid_to
+        tinyint is_current
+    }
+
+    DIM_PRODUCT {
+        int product_sk PK
+        varchar product_id
+        varchar product_category_name
+        int product_name_length
+        int product_description_length
+        int product_photos_qty
+        decimal product_weight_g
+        decimal product_length_cm
+        decimal product_height_cm
+        decimal product_width_cm
+    }
+
+    DIM_SELLER {
+        int seller_sk PK
+        varchar seller_id
+        varchar seller_zip_code
+        varchar seller_city
+        varchar seller_state
+    }
+
+    DIM_PAYMENT_TYPE {
+        int payment_type_sk PK
+        varchar payment_type
+    }
+
+    DIM_DATE {
+        int date_sk PK
+        date full_date
+        int day
+        int month
+        varchar month_name
+        int quarter
+        int year
+        varchar day_of_week
+        tinyint is_weekend
+    }
+
+    FACT_ORDER_ITEMS {
+        bigint order_item_sk PK
+        varchar order_id
+        int order_item_id
+        int customer_sk FK
+        int product_sk FK
+        int seller_sk FK
+        int purchase_date_sk FK
+        int shipping_limit_date_sk FK
+        varchar order_status
+        decimal price
+        decimal freight_value
+        decimal total_item_value
+    }
+
+    FACT_ORDER_DELIVERY {
+        bigint order_delivery_sk PK
+        varchar order_id
+        int customer_sk FK
+        int purchase_date_sk FK
+        int delivered_date_sk FK
+        int estimated_date_sk FK
+        varchar order_status
+        decimal actual_delivery_days
+        decimal estimated_delivery_days
+        decimal delivery_delay_days
+        tinyint is_delayed
+    }
+```
+
+---
+
+## 🧹 Tabel Teknik Cleansing Data
+
+Pipeline ETL menerapkan **4 teknik cleansing komprehensif**. Setiap baris yang gagal divalidasi **TIDAK didrop diam-diam**, melainkan disimpan ke dalam tabel karantina `dwh_olist.rejected_rows` bersama alasan dan rekaman JSON aslinya.
+
+| No | Masalah Kualitas Data | Teknik Cleansing | Implementasi di `etl/clean.py` | Hasil / Tindakan |
+|---|---|---|---|---|
+| **1** | Kategori produk bernilai NULL (`product_category_name is null`) | **Null Imputation** | Mengganti nilai NULL dengan string `'unknown'` dan dimensi fisik dengan 0 | 610 produk diimputasi; produk tetap masuk ke DWH dan dapat dianalisis tanpa menghilangkan relasi |
+| **2** | Timestamp persetujuan pembayaran kosong (`order_approved_at is null`) pada order non-canceled | **Null Validation & Filtering** | Mendeteksi order aktif tanpa otorisasi pembayaran; mengisolasi baris | 14 order ditolak dan dikarantina ke `rejected_rows` karena melanggar integritas finansial |
+| **3** | Duplikasi persis (*Exact duplicates*) & duplikasi business key `(order_id, order_item_id)` | **Text Normalization & Deduplication** | Normalisasi teks kota/state (strip whitespace & lowercase), kemudian memfilter duplikasi | Duplikat dieliminasi; baris duplikat dikarantina ke `rejected_rows` |
+| **4** | Tanggal pengiriman lebih awal dari pembelian (`delivered < purchase`) | **Temporal Logic Validation** | Komparasi timestamp: `order_delivered_customer_date < order_purchase_timestamp` | Ditolak ke `rejected_rows` dengan alasan `order delivered before purchase timestamp` |
+| **5** | Tanggal estimasi pengiriman lebih awal dari pembelian (`estimated < purchase`) | **Temporal Logic Validation** | Komparasi timestamp: `order_estimated_delivery_date < order_purchase_timestamp` | Ditolak ke `rejected_rows` dengan alasan `estimated delivery date before purchase timestamp` |
+| **6** | Status `'delivered'` namun tanggal sampai kosong, atau status `'canceled'` namun memiliki tanggal sampai | **Business State Consistency** | Validasi silang antara kolom `order_status` dan `order_delivered_customer_date` | 14 baris kontradiktif dikarantina ke `rejected_rows` |
+| **7** | Nilai harga item `<= 0` atau ongkos kirim `< 0` | **Numeric Domain Boundary Validation** | Memastikan `price > 0` dan `freight_value >= 0` | Dikarantina ke `rejected_rows` |
+| **8** | Tanggal transaksi di masa depan (*Future Date*, contoh tahun 2035) | **Date Horizon Validation** | Memfilter `order_purchase_timestamp > current_date` | Dikarantina ke `rejected_rows` |
+| **9** | Pergeseran kolom (*Column Shift*): `order_status` berisi angka tahun (`'2018'`) atau `payment_type` berisi kode state (`'SP'`, `'RJ'`) | **Domain Set Validation & Shift Quarantine** | Memvalidasi keanggotaan nilai terhadap `VALID_ORDER_STATUSES` dan `VALID_PAYMENT_TYPES` | Dikarantina ke `rejected_rows` dengan alasan terindikasi column shift |
+
+---
+
+## 💡 Keputusan Desain Data Warehouse
+
+### 1. Pemilihan Fakta ke-2: `fact_order_delivery`
+- **Grain**: 1 baris per `order_id`.
+- **Alasan Pemilihan**: Memisahkan metrik logistik pengiriman dari metrik transaksi item. Setiap order hanya memiliki satu siklus pengiriman dengan metrik: hari aktual, hari estimasi, selisih keterlambatan (*delay days*), dan status keterlambatan (*is_delayed*).
+
+### 2. Penyelesaian Masalah Grain & Cartesian Multiplication
+- **Masalah pada Legacy Script**: Dataset flat hasil join menghubungkan tabel `items` dan `payments` pada level order. Jika suatu pesanan memiliki 2 item dan 2 metode pembayaran, akan timbul 4 baris (*Cartesian product*). Menjumlahkan `payment_value` pada baris item menyebabkan nilai pembayaran terhitung ganda (*double-counting*).
+- **Solusi**: `fact_order_items` hanya memuat measure tingkat item (`price`, `freight_value`), sementara agregasi order dihitung dengan `COUNT(DISTINCT order_id)`.
+
+### 3. Implementasi SCD Type 2 pada `dim_customer`
+- Kolom pelacak historis disediakan: `valid_from`, `valid_to`, dan `is_current`.
+- Menggunakan `customer_unique_id` sebagai business key (mengelompokkan repeat order dari customer yang sama).
+- Karena dataset publik Olist merupakan snapshot tunggal, seluruh data awal ditandai dengan `is_current = 1` dan `valid_to = NULL`, dengan arsitektur yang siap (*forward-compatible*) menerima pembaruan historis berikutnya.
+
+### 4. Record Unknown (`sk = -1`)
+- Setiap tabel dimensi memiliki baris `sk = -1` (Unknown Record).
+- Jika terdapat transaksi fakta dengan foreign key yang hilang atau tidak cocok di dimensi, foreign key akan diarahkan ke `-1` sehingga baris fakta **tidak akan dibuang secara diam-diam (*silent drop*)**.
+
+---
+
+## 📁 Struktur Proyek
 
 ```
 project-oltp-to-dwh/
-├── data/                          # Dataset (tidak di-commit)
-│   └── Olist.csv
-├── oltp/
-│   └── load_oltp.py              # Load CSV → MySQL OLTP
-├── dwh/
-│   └── create_star_schema.py     # Create star schema tables
-├── etl/
-│   ├── transform_oltp_to_dwh.py  # ETL: OLTP → DWH
-│   └── analytics.py              # Business insight queries
-├── .env.example                  # Template .env
-├── .gitignore
-├── requirements.txt
-└── README.md
+├── data/
+│   └── raw/                     # Dataset Kaggle Olist mentah (CSV koma)
+├── legacy/                      # Script lama temanku (DIARSIPKAN & TIDAK DIUBAH)
+│   ├── load_oltp.py
+│   ├── create_star_schema.py
+│   ├── transform_oltp_to_dwh.py
+│   └── analytics.py
+├── sql/                         # Definisi skema SQL DDL
+│   ├── 01_oltp_ddl.sql          # Staging table & tabel 3NF OLTP
+│   ├── 02_dwh_ddl.sql           # Star Schema (5 Dimensi & 2 Fakta)
+│   └── 03_support_tables.sql    # etl_log, rejected_rows, etl_watermark
+├── oltp/                        # Ekstraksi staging & pemecahan ke 3NF
+│   ├── load_staging.py          # Membaca data/raw atau Olist.csv -> olist_raw
+│   └── split_to_oltp.py         # Memecah olist_raw -> 3NF normalisasi
+├── etl/                         # Pipeline ETL modular
+│   ├── config.py                # Koneksi DB aman (URL.create) & konstanta
+│   ├── extract.py               # Full load & incremental extract (watermark)
+│   ├── clean.py                 # 4 teknik cleansing & karantina
+│   ├── transform.py             # Pembentukan dimensi & fakta
+│   ├── load.py                  # Dimensi upsert, load fakta transaksional
+│   ├── run_etl.py               # Orkestrator utama, logging, audit report
+│   └── analytics.py             # 9 query bisnis & analisis multi-fact
+├── scheduler/                   # Otomasi penjadwalan
+│   ├── run_scheduler.py         # APScheduler cron harian jam 02:00
+│   ├── dwh-etl.service          # Unit service systemd
+│   └── dwh-etl.timer            # Timer systemd (02:00 AM)
+├── reports/                     # Laporan audit kualitas data Before vs After
+│   └── data_quality_report_latest.md
+├── tests/                       # Pengujian otomatis pytest
+│   ├── test_clean.py            # Unit test fungsi cleansing data
+│   └── test_dwh_integrity.py    # Uji integritas DWH, FK, grain, & measure
+├── inject_dirty_data.py         # Injektor data anomali terkontrol
+├── .env.example                 # Template konfigurasi environment
+├── requirements.txt             # Dependensi Python
+└── README.md                    # Dokumentasi lengkap proyek
 ```
 
-## 🛠️ Tech Stack
+---
 
-- **Python 3.13** — main language
-- **MySQL 8.0** — database (OLTP + DWH)
-- **Pandas** — data manipulation
-- **SQLAlchemy + PyMySQL** — DB connector
-- **python-dotenv** — config management
-
-## 🚀 Cara Menjalankan
+## ⚙️ Instalasi & Setup
 
 ### 1. Prasyarat
 - Python 3.10+
-- MySQL 8.0+
-- Git
+- MySQL Server 8.0+ (Local atau via Docker)
 
-### 2. Clone Repository
+### 2. Setup Virtual Environment
 ```bash
-git clone https://github.com/USERNAME/project-oltp-to-dwh.git
-cd project-oltp-to-dwh
-```
-
-### 3. Download Dataset
-Download [Brazilian E-Commerce Public Dataset by Olist](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) dari Kaggle, simpan sebagai `data/Olist.csv`.
-
-### 4. Setup Virtual Environment
-```bash
-python -m venv venv
-venv\Scripts\activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 5. Setup Database
-```sql
-CREATE DATABASE oltp_olist;
-CREATE DATABASE dwh_olist;
-```
-
-### 6. Konfigurasi `.env`
-Copy `.env.example` → `.env`, isi password MySQL kamu.
-
-### 7. Jalankan Pipeline
+### 3. Konfigurasi `.env`
+Salin template konfigurasi dan sesuaikan kredensial MySQL kamu:
 ```bash
-python oltp/load_oltp.py
-python dwh/create_star_schema.py
-python etl/transform_oltp_to_dwh.py
-python etl/analytics.py
+cp .env.example .env
+```
+Isi file `.env`:
+```ini
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=secret
+DB_NAME_OLTP=oltp_olist
+DB_NAME_DWH=dwh_olist
+DB_NAME=oltp_olist
+CSV_PATH=data/Olist.csv
+TABLE_NAME=olist_raw
 ```
 
-## 📊 Business Insights
+---
 
-### Top 5 Kategori Produk (by Revenue)
-| Rank | Kategori | Revenue (R$) |
-|------|----------|--------------|
-| 1 | beleza_saude | 1,271,413 |
-| 2 | relogios_presentes | 1,212,373 |
-| 3 | cama_mesa_banho | 1,077,834 |
-| 4 | esporte_lazer | 990,418 |
-| 5 | informatica_acessorios | 918,838 |
+## 🚀 Urutan Menjalankan Pipeline
 
-### Revenue Growth
-| Tahun | Transaksi | Revenue (R$) |
-|-------|-----------|--------------|
-| 2016 | 335 | 42,241 |
-| 2017 | 51,196 | 6,158,929 |
-| 2018 | 61,856 | 7,425,643 |
+Jalankan tahapan berikut secara berurutan:
 
-### Metode Pembayaran
-| Metode | Transaksi | Persentase |
-|--------|-----------|------------|
-| credit_card | 83,703 | 73.8% |
-| boleto | 22,047 | 19.4% |
-| voucher | 6,012 | 5.3% |
-| debit_card | 1,625 | 1.4% |
+```bash
+# 1. Muat dataset mentah ke staging table olist_raw (sekaligus injeksi data kotor terkontrol)
+python oltp/load_staging.py
 
-## 🎓 What I Learned
+# 2. Pecah staging ke skema OLTP 3NF (data kotor dibiarkan apa adanya)
+python oltp/split_to_oltp.py
 
-- **ETL Pipeline** — extract CSV, transform dengan Pandas, load ke MySQL
-- **Data Warehouse Design** — star schema dengan fact & dimension tables
-- **Data Quality** — handle 3 baris 'column shift' yang ditemukan
-- **SQL Analytics** — complex JOIN, GROUP BY, DATEDIFF
-- **Security** — credentials di `.env` (bukan hardcode)
+# 3. Buat skema DWH Star Schema dan Support Tables (etl_log, rejected_rows, etl_watermark)
+python dwh/create_star_schema.py --recreate
 
-## 👤 Author
+# 4. Jalankan Orkestrator ETL (Extract -> Clean -> Transform -> Load)
+python etl/run_etl.py
 
-**I Made Duinata**
-- GitHub: [@USERNAME](https://github.com/USERNAME)
+# 5. Jalankan Query Analitik Bisnis
+python etl/analytics.py
 
-## 📄 License
+# 6. Jalankan Test Suite Pytest
+python -m pytest -v tests/
+```
 
-Educational project. Dataset credit to [Olist on Kaggle](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce).
+---
+
+## ⏰ Panduan Scheduler
+
+Tersedia dua opsi penjadwalan produksi:
+
+### Opsi 1: APScheduler (`scheduler/run_scheduler.py`)
+
+1. **Mode Demo (Setiap 1 menit)**:
+   ```bash
+   python scheduler/run_scheduler.py --demo
+   ```
+2. **Mode Produksi (Setiap hari pukul 02:00 pagi)**:
+   ```bash
+   python scheduler/run_scheduler.py
+   ```
+3. **Trigger Langsung Sekali (*Run Now*)**:
+   ```bash
+   python scheduler/run_scheduler.py --now
+   ```
+*Catatan: Menggunakan `max_instances=1` untuk menjamin tidak ada run yang tumpang tindih.*
+
+### Opsi 2: Systemd Service & Timer (Linux Daemon)
+
+Salin unit file ke direktori systemd:
+```bash
+sudo cp scheduler/dwh-etl.service /etc/systemd/system/
+sudo cp scheduler/dwh-etl.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# Aktifkan timer harian
+sudo systemctl enable --now dwh-etl.timer
+
+# Cek status timer
+systemctl list-timers --all | grep dwh-etl
+```
+
+---
+
+## 🧪 Pengujian Otomatis (Testing)
+
+Suite pengujian otomatis berbasis `pytest` mencakup:
+- **Unit Testing Cleansing**: Null handling, normalisasi teks, deduplikasi business key, logika temporal (*bad logic*), validasi domain status, dan deteksi column shift.
+- **Integritas DWH**: Bebas dari FK orphan, keunikan 100% pada grain fakta, keberadaan record Unknown (-1), serta **konsistensi rekonsiliasi measure keuangan** antara OLTP dan DWH:
+  $$\sum \text{Price}_{\text{DWH}} + \sum \text{Price}_{\text{Rejected}} = \sum \text{Price}_{\text{OLTP}}$$
+
+Jalankan pengujian:
+```bash
+python -m pytest -v tests/
+```
+Output:
+```
+tests/test_clean.py::test_null_handling PASSED
+tests/test_clean.py::test_deduplication_and_text_normalization PASSED
+tests/test_clean.py::test_bad_business_logic PASSED
+tests/test_clean.py::test_domain_validation_and_column_shift PASSED
+tests/test_dwh_integrity.py::test_unknown_records_in_dimensions PASSED
+tests/test_dwh_integrity.py::test_fact_order_items_grain_uniqueness PASSED
+tests/test_dwh_integrity.py::test_fact_order_delivery_grain_uniqueness PASSED
+tests/test_dwh_integrity.py::test_no_orphan_foreign_keys_in_facts PASSED
+tests/test_dwh_integrity.py::test_sum_measure_consistency PASSED
+tests/test_dwh_integrity.py::test_dim_customer_scd2_structure PASSED
+
+============================== 10 passed in 2.71s ==============================
+```
+
+---
+
+## 📈 Business Insights & Hasil Analitik
+
+Dieksekusi dari script `etl/analytics.py`:
+
+1. **Pertumbuhan Penjualan Tahunan**:
+   - 2016: 316 order (R$ 46,739)
+   - 2017: 44,484 order (R$ 6,009,477)
+   - 2018: 53,842 order (R$ 7,532,305)
+2. **Top 3 Kategori Produk Terlaris**:
+   - `beleza_saude`: R$ 1,258,751 (9,669 item)
+   - `relogios_presentes`: R$ 1,204,727 (5,989 item)
+   - `cama_mesa_banho`: R$ 1,036,854 (11,114 item)
+3. **Korelasi Nilai Order terhadap Keterlambatan Pengiriman (Multi-Fact Query 1)**:
+   - *Low Value (< R$ 50)*: Delay Rate 7.47% (Rata-rata 11.56 hari)
+   - *Medium Value (R$ 50 - 200)*: Delay Rate 8.18% (Rata-rata 12.76 hari)
+   - *High Value (R$ 200 - 500)*: Delay Rate 9.09% (Rata-rata 13.59 hari)
+   - *Premium (> R$ 500)*: Delay Rate 9.29% (Rata-rata 14.42 hari)
+   *(Insight: Barang premium dan berharga tinggi cenderung membutuhkan waktu packing/penanganan khusus dan memiliki rute kurir khusus sehingga rata-rata waktu sampai sedikit lebih lama).*
+4. **Wilayah dengan Tingkat Keterlambatan Tertinggi**:
+   - Alagoas (AL): 23.90% telat (Rata-rata 24.59 hari)
+   - Maranhão (MA): 19.80% telat (Rata-rata 21.65 hari)
+   - Piauí (PI): 15.95% telat (Rata-rata 19.54 hari)

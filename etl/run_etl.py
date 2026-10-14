@@ -46,6 +46,7 @@ from etl.transform import (
     build_dim_date,
     build_fact_order_items,
     build_fact_order_delivery,
+    build_fact_order_payments,
 )
 from etl.load import (
     load_all_dimensions,
@@ -138,6 +139,7 @@ def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline
     rows_clean = 0
     rows_rejected = 0
     rows_loaded = 0
+    table_stats = None
 
     try:
         # 1. EXTRACT
@@ -152,6 +154,19 @@ def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline
         rows_clean = sum(len(df) for df in clean_data.values())
         rows_rejected = len(rejections)
         logger.info(f"Total baris bersih: {rows_clean:,} | Ditolak: {rows_rejected:,}")
+
+        # --- Per-table stats untuk etl_log ---
+        TABLE_KEYS = ["customers", "products", "sellers", "orders", "order_items", "order_payments"]
+        table_stats = {}
+        for tbl in TABLE_KEYS:
+            in_count = len(raw_data.get(tbl, []))
+            clean_count = len(clean_data.get(tbl, []))
+            rej_count = sum(1 for r in rejections if r.get("table_source", "") == tbl)
+            table_stats[tbl] = {
+                "rows_in": in_count,
+                "rows_clean": clean_count,
+                "rows_rejected": rej_count,
+            }
 
         # 3. TRANSFORM
         logger.info("\n[Step 3/4] 🔄 TRANSFORM KE STAR SCHEMA...")
@@ -189,12 +204,24 @@ def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline
             sk_mappings["cust_sk_map"],
         )
 
+        fact_payments = build_fact_order_payments(
+            clean_data["order_payments"],
+            clean_data["orders"],
+            sk_mappings["cust_sk_map"],
+            sk_mappings["pay_sk_map"],
+        )
+
+        logger.info(f"  fact_order_items    : {len(fact_items):,} baris")
+        logger.info(f"  fact_order_delivery : {len(fact_delivery):,} baris")
+        logger.info(f"  fact_order_payments : {len(fact_payments):,} baris")
+
         # 5. LOAD FACTS (TRANSACTIONAL)
         logger.info("\n[Step 4c/4] 📤 LOAD TABEL FAKTA (TRANSAKSIONAL)...")
         order_ids_batch = clean_data["orders"]["order_id"].tolist() if incremental else None
         rows_loaded = load_facts_transactional(
             fact_order_items=fact_items,
             fact_order_delivery=fact_delivery,
+            fact_order_payments=fact_payments,
             incremental=incremental,
             order_ids=order_ids_batch,
         )
@@ -225,6 +252,7 @@ def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline
             rows_clean=rows_clean,
             rows_rejected=rows_rejected,
             rows_loaded=rows_loaded,
+            table_stats=table_stats,
         )
 
         logger.info("=" * 60)

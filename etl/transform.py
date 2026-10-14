@@ -11,6 +11,7 @@ Desain DWH:
 2. Fakta:
    - Fact 1: fact_order_items (grain: order_id + order_item_id, measures: price, freight_value, total)
    - Fact 2: fact_order_delivery (grain: order_id, measures: actual_delivery_days, estimated_delivery_days, delivery_delay_days, is_delayed)
+   - Fact 3: fact_order_payments (grain: order_id + payment_sequential, measures: payment_value, payment_installments)
 """
 
 import logging
@@ -279,5 +280,48 @@ def build_fact_order_delivery(
         "estimated_delivery_days",
         "delivery_delay_days",
         "is_delayed",
+    ]
+    return df[fact_cols].copy()
+
+
+def build_fact_order_payments(
+    df_payments: pd.DataFrame,
+    df_orders: pd.DataFrame,
+    cust_sk_map: dict,
+    pay_type_sk_map: dict,
+) -> pd.DataFrame:
+    """
+    Membangun fact_order_payments:
+    Grain: order_id + payment_sequential
+    Measures: payment_value, payment_installments
+    FK: dim_customer (via customer_id), dim_payment_type (via payment_type), dim_date (via purchase timestamp)
+    """
+    logger.info("Building fact_order_payments...")
+    df = df_payments.merge(
+        df_orders[["order_id", "customer_id", "order_purchase_timestamp"]],
+        on="order_id",
+        how="left",
+    )
+
+    # Lookup surrogate keys
+    df["customer_sk"] = df["customer_id"].map(cust_sk_map).fillna(UNKNOWN_SK).astype(int)
+    df["payment_type_sk"] = df["payment_type"].map(pay_type_sk_map).fillna(UNKNOWN_SK).astype(int)
+
+    # Date key dari purchase timestamp
+    df["purchase_date_sk"] = to_date_sk(df["order_purchase_timestamp"])
+
+    # Measures
+    df["payment_value"] = pd.to_numeric(df["payment_value"], errors="coerce").fillna(0.0)
+    df["payment_installments"] = pd.to_numeric(df["payment_installments"], errors="coerce").fillna(1).astype(int)
+    df["payment_sequential"] = pd.to_numeric(df["payment_sequential"], errors="coerce").fillna(1).astype(int)
+
+    fact_cols = [
+        "order_id",
+        "payment_sequential",
+        "customer_sk",
+        "payment_type_sk",
+        "purchase_date_sk",
+        "payment_value",
+        "payment_installments",
     ]
     return df[fact_cols].copy()

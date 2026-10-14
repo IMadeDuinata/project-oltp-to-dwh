@@ -216,6 +216,48 @@ def main():
         """
     )
 
+    # 10. DISTRIBUSI METODE PEMBAYARAN (fact_order_payments)
+    run_query(
+        "10. DISTRIBUSI METODE PEMBAYARAN — REVENUE & ORDER COUNT (fact_order_payments)",
+        """
+        SELECT
+            dpt.payment_type                           AS metode_pembayaran,
+            COUNT(DISTINCT fop.order_id)               AS jumlah_order,
+            COUNT(fop.payment_fact_sk)                 AS jumlah_transaksi,
+            ROUND(SUM(fop.payment_value), 2)           AS total_nilai_pembayaran,
+            ROUND(AVG(fop.payment_value), 2)           AS rata_rata_per_transaksi,
+            ROUND(AVG(fop.payment_installments), 2)    AS rata_rata_cicilan
+        FROM fact_order_payments fop
+        JOIN dim_payment_type dpt ON fop.payment_type_sk = dpt.payment_type_sk
+        WHERE dpt.payment_type != 'unknown'
+        GROUP BY dpt.payment_type
+        ORDER BY total_nilai_pembayaran DESC
+        """
+    )
+
+    # 11. ANALISIS CICILAN PER TIPE PEMBAYARAN DAN SEGMEN NILAI ORDER
+    run_query(
+        "11. ANALISIS CICILAN PER METODE PEMBAYARAN & SEGMEN NILAI (fact_order_payments)",
+        """
+        SELECT
+            dpt.payment_type                        AS metode_pembayaran,
+            CASE
+                WHEN fop.payment_value < 50   THEN '1. Kecil (< R$ 50)'
+                WHEN fop.payment_value < 200  THEN '2. Sedang (R$ 50-200)'
+                WHEN fop.payment_value < 500  THEN '3. Tinggi (R$ 200-500)'
+                ELSE '4. Premium (> R$ 500)'
+            END                                     AS segmen_nilai,
+            COUNT(fop.payment_fact_sk)              AS jumlah_transaksi,
+            ROUND(AVG(fop.payment_installments), 2) AS avg_cicilan,
+            ROUND(SUM(fop.payment_value), 2)        AS total_nilai
+        FROM fact_order_payments fop
+        JOIN dim_payment_type dpt ON fop.payment_type_sk = dpt.payment_type_sk
+        WHERE dpt.payment_type != 'unknown'
+        GROUP BY dpt.payment_type, segmen_nilai
+        ORDER BY dpt.payment_type, segmen_nilai
+        """
+    )
+
     print("\n" + "=" * 75)
     print("🎉 SEMUA QUERY ANALITIK SELESAI DIEKSEKUSI!")
     print("=" * 75)

@@ -18,7 +18,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
 from dotenv import load_dotenv
 
-from inject_dirty_data import inject_dirty_data
+from oltp.inject_dirty_data import inject_dirty_data
 
 # ============================================================
 # 1. KONFIGURASI DARI .env

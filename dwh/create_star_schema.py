@@ -121,7 +121,7 @@ def main():
         with engine.begin() as conn:
             conn.execute(text("SET FOREIGN_KEY_CHECKS=0;"))
             drop_tables = [
-                "fact_order_items", "fact_order_delivery",
+                "fact_order_items", "fact_order_delivery", "fact_order_payments",
                 "dim_customer", "dim_product", "dim_seller",
                 "dim_payment_type", "dim_date",
                 "etl_log", "rejected_rows", "etl_watermark"

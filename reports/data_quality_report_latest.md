@@ -1,7 +1,7 @@
 # 📋 Laporan Kualitas Data ETL (Before vs After Cleansing)
 
-- **Run ID**: `RUN_20261014_121938_cbcdf3`
-- **Waktu Eksekusi**: `2026-10-14 12:19:38`
+- **Run ID**: `RUN_20261014_123816_ba6437`
+- **Waktu Eksekusi**: `2026-10-14 12:38:16`
 - **Total Baris Ditolak (Quarantine)**: `104`
 
 ---

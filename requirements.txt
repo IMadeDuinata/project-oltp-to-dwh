@@ -5,3 +5,5 @@ cryptography
 python-dotenv
 apscheduler
 pytest
+streamlit
+plotly

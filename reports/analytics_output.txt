@@ -1,0 +1,161 @@
+===========================================================================
+📈 ANALISIS DATA WAREHOUSE OLIST — BUSINESS INSIGHTS
+===========================================================================
+
+===========================================================================
+📊 1. TOTAL REVENUE DAN JUMLAH ORDER PER TAHUN
+===========================================================================
+ year  jumlah_order  jumlah_item_terjual  total_revenue_rp  total_ongkir_rp  avg_harga_item
+ 2016           307                  364          49169.73          7308.99          135.08
+ 2017         44563                50847        6153840.25        986548.75          121.03
+ 2018         53770                61411        7385312.93       1257565.49          120.26
+
+===========================================================================
+📊 2. TOP 10 KATEGORI PRODUK DENGAN REVENUE TERTINGGI
+===========================================================================
+              kategori  jumlah_order  jumlah_item  total_revenue
+          beleza_saude          8834         9668     1258601.45
+    relogios_presentes          5622         5989     1204727.68
+       cama_mesa_banho          9416        11114     1036854.69
+         esporte_lazer          7716         8637      987779.49
+informatica_acessorios          6689         7827      911993.33
+      moveis_decoracao          6446         8331      729506.89
+            cool_stuff          3629         3793      635050.88
+ utilidades_domesticas          5884         6964      632248.66
+            automotivo          3896         4234      592602.81
+    ferramentas_jardim          3517         4346      485121.46
+
+===========================================================================
+📊 3. TOP 10 STATE PELANGGAN — BERDASARKAN JUMLAH ORDER
+===========================================================================
+state  jumlah_order  total_revenue  avg_belanja_per_item
+   sp         39960     5037651.27                110.16
+   rj         12293     1758991.87                125.54
+   mg         11168     1537023.67                121.25
+   rs          5246      725681.00                121.01
+   pr          4838      666068.66                120.12
+   sc          3509      502473.64                124.31
+   ba          3256      498202.15                135.49
+   NA          3246      406535.50                103.52
+   df          2060      295790.46                127.00
+   es          1955      266406.34                122.20
+
+===========================================================================
+📊 4. TREN PENJUALAN BULANAN (2017 - 2018)
+===========================================================================
+ year  month month_name  jumlah_order  total_revenue
+ 2017      1    January           787      120226.98
+ 2017      2   February          1721      245718.48
+ 2017      3      March          2641      374344.30
+ 2017      4      April          2391      359927.23
+ 2017      5        May          3659      505892.14
+ 2017      6       June          3217      433038.60
+ 2017      7       July          3969      498031.48
+ 2017      8     August          4293      573971.68
+ 2017      9  September          4243      624401.69
+ 2017     10    October          4568      664219.43
+ 2017     11   November          7450     1010154.07
+ 2017     12   December          5624      743914.17
+
+===========================================================================
+📊 5. TOP 10 SELLER — BERDASARKAN TOTAL REVENUE
+===========================================================================
+                       seller_id seller_state  jumlah_order  total_revenue
+4869f7a5dfa277a7dca6462dcf3b52b2           SP          1132      229472.63
+53243585a1d6dc2643021fd1853d8905           BA           358      222776.05
+4a3ca9315b744ce9f8e9374361493884           SP          1806      200472.92
+fa1c13f2614d7b5c4749cbc52fecda94           SP           585      194042.03
+7c67e1448b00f6e969d365cea6b010ab           SP           982      187923.89
+7e93a43ef30c4f03f38b393420bc753a           SP           336      176431.87
+da8622b14eb17ae2831f4ac5b9dab84a           SP          1314      160236.57
+7a67c85e85bb2ce8582c35f2203ad736           SP          1157      141505.56
+1025f0e2d44d7041d6cf58b6550e0bfa           SP           915      138968.55
+955fee9216a65b617aa5c0531780ce60           SP          1287      135171.70
+
+===========================================================================
+📊 6. RATA-RATA WAKTU PENGIRIMAN & ESTIMASI PER BULAN (HARI)
+===========================================================================
+ year  month month_name  total_pengiriman  avg_hari_aktual  avg_hari_estimasi  avg_selisih_estimasi
+ 2017      1    January               748            12.64              39.49                -26.84
+ 2017      2   February              1641            13.17              31.84                -18.67
+ 2017      3      March              2546            12.95              24.73                -11.78
+ 2017      4      April              2303            14.92              27.35                -12.43
+ 2017      5        May              3545            11.32              24.28                -12.96
+ 2017      6       June              3135            12.01              24.02                -12.01
+ 2017      7       July              3872            11.59              23.32                -11.72
+ 2017      8     August              4193            11.15              23.48                -12.33
+ 2017      9  September              4150            11.85              22.44                -10.59
+ 2017     10    October              4478            11.86              23.02                -11.16
+
+===========================================================================
+📊 7. TINGKAT KETERLAMBATAN PENGIRIMAN (DELAY RATE) PER PROVINSI
+===========================================================================
+state  total_order  order_terlambat  persentase_telat_pct  avg_hari_sampai
+   al          385             92.0                 23.90            24.59
+   ma          697            138.0                 19.80            21.65
+   pi          464             74.0                 15.95            19.54
+   ce         1256            195.0                 15.53            21.32
+   se          329             50.0                 15.20            21.52
+   ba         3156            442.0                 14.01            19.31
+   rj        11901           1606.0                 13.49            15.31
+   es         1926            239.0                 12.41            15.80
+   to          267             33.0                 12.36            17.52
+   pa          922            114.0                 12.36            23.77
+
+===========================================================================
+📊 8. [MULTI-FACT QUERY 1] KORELASI NILAI ORDER DENGAN TINGKAT KETERLAMBATAN
+===========================================================================
+             tier_nilai_order  total_order  total_terlambat  delay_rate_pct  avg_hari_pengiriman
+       1. Low Value (< R$ 50)        28786           2151.0            7.47                11.56
+2. Medium Value (R$ 50 - 200)        53137           4347.0            8.18                12.76
+ 3. High Value (R$ 200 - 500)        11058           1005.0            9.09                13.59
+        4. Premium (> R$ 500)         3477            323.0            9.29                14.42
+
+===========================================================================
+📊 9. [MULTI-FACT QUERY 2] PERFORMA LOGISTIK PADA TOP 10 KATEGORI PRODUK TERLARIS
+===========================================================================
+       kategori_produk  total_order  total_revenue  avg_hari_pengiriman  delay_rate_pct
+          beleza_saude         8647     1233131.72                11.98            9.91
+    relogios_presentes         5493     1165898.98                12.66            8.83
+       cama_mesa_banho         9271     1023300.77                12.81            9.92
+         esporte_lazer         7527      954604.57                12.15            8.30
+informatica_acessorios         6530      888763.62                13.22            9.10
+      moveis_decoracao         6304      711672.09                12.88           10.91
+ utilidades_domesticas         5743      615628.69                10.92            7.68
+            cool_stuff         3556      609964.13                12.36            7.06
+            automotivo         3809      578849.35                12.23            9.00
+            brinquedos         3803      471097.49                11.70            7.86
+
+===========================================================================
+📊 10. DISTRIBUSI METODE PEMBAYARAN — REVENUE & ORDER COUNT (fact_order_payments)
+===========================================================================
+metode_pembayaran  jumlah_order  jumlah_transaksi  total_nilai_pembayaran  rata_rata_per_transaksi  rata_rata_cicilan
+      credit_card         75979             76266             12434618.31                   163.04               3.51
+           boleto         19600             19600              2840285.56                   144.91               1.00
+          voucher          3767              5643               352717.71                    62.51               1.00
+       debit_card          1521              1522               214841.49                   141.16               1.00
+
+===========================================================================
+📊 11. ANALISIS CICILAN PER METODE PEMBAYARAN & SEGMEN NILAI (fact_order_payments)
+===========================================================================
+metode_pembayaran           segmen_nilai  jumlah_transaksi  avg_cicilan  total_nilai
+           boleto     1. Kecil (< R$ 50)              4012         1.00    146971.53
+           boleto  2. Sedang (R$ 50-200)             12282         1.00   1294753.25
+           boleto 3. Tinggi (R$ 200-500)              2635         1.00    760656.35
+           boleto  4. Premium (> R$ 500)               671         1.00    637904.43
+      credit_card     1. Kecil (< R$ 50)             13256         1.69    460222.57
+      credit_card  2. Sedang (R$ 50-200)             46887         3.30   5134323.46
+      credit_card 3. Tinggi (R$ 200-500)             12673         5.18   3683507.36
+      credit_card  4. Premium (> R$ 500)              3450         7.18   3156564.92
+       debit_card     1. Kecil (< R$ 50)               367         1.00     13291.22
+       debit_card  2. Sedang (R$ 50-200)               915         1.00     96746.15
+       debit_card 3. Tinggi (R$ 200-500)               197         1.00     55772.63
+       debit_card  4. Premium (> R$ 500)                43         1.00     49031.49
+          voucher     1. Kecil (< R$ 50)              3272         1.00     69040.00
+          voucher  2. Sedang (R$ 50-200)              2101         1.00    190132.93
+          voucher 3. Tinggi (R$ 200-500)               232         1.00     63065.84
+          voucher  4. Premium (> R$ 500)                38         1.00     30478.94
+
+===========================================================================
+🎉 SEMUA QUERY ANALITIK SELESAI DIEKSEKUSI!
+===========================================================================

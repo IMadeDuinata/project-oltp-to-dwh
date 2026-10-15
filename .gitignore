@@ -28,3 +28,13 @@ Thumbs.db
 # Data (CSV besar — tidak di-commit)
 data/*.csv
 data/*.zip
+# Devenv
+.devenv*
+devenv.local.nix
+devenv.local.yaml
+
+# direnv
+.direnv
+
+# pre-commit
+.pre-commit-config.yaml

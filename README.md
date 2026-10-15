@@ -474,3 +474,46 @@ Dieksekusi dari script `etl/analytics.py`:
    - Alagoas (AL): 23.90% telat (Rata-rata 24.59 hari)
    - Maranhão (MA): 19.80% telat (Rata-rata 21.65 hari)
    - Piauí (PI): 15.95% telat (Rata-rata 19.54 hari)
+
+---
+
+## 📊 Dashboard Streamlit (Interaktif)
+
+Dashboard multipage berbasis **Streamlit** yang terkoneksi langsung ke DWH `dwh_olist` via SQLAlchemy + PyMySQL.
+Semua query di-cache (`@st.cache_data`) dan tersedia filter sidebar: **Tahun**, **Bulan**, **State Customer**.
+
+### Halaman
+
+| Halaman | File | Konten |
+|---------|------|--------|
+| 🏠 Home | `dashboard/Home.py` | KPI cards (revenue, order, delivery, delay) + line chart revenue per bulan |
+| 🛍️ Sales | `dashboard/pages/1_Sales.py` | Top 10 kategori, revenue per bulan, box plot harga per kategori |
+| 🚚 Delivery | `dashboard/pages/2_Delivery.py` | Avg delivery days per bulan, delay rate per state, histogram delivery days |
+| 💳 Payment | `dashboard/pages/3_Payment.py` | Distribusi metode (pie), cicilan per segmen nilai, revenue per payment type |
+| 👥 Customer | `dashboard/pages/4_Customer.py` | Top 10 state by order, sebaran customer, repeat vs new customer |
+
+### Cara Menjalankan
+
+```bash
+# Pastikan .env sudah terkonfigurasi
+# Install dependensi jika belum
+pip install -r requirements.txt
+
+# Jalankan dashboard
+streamlit run dashboard/Home.py
+```
+
+Dashboard akan terbuka di browser: **http://localhost:8501**
+
+### Struktur File Dashboard
+
+```
+dashboard/
+├── Home.py              # Halaman utama (ringkasan eksekutif)
+├── utils.py             # Engine, color palette, filter helpers
+└── pages/
+    ├── 1_Sales.py       # Analisis penjualan
+    ├── 2_Delivery.py    # Performa logistik
+    ├── 3_Payment.py     # Analisis pembayaran
+    └── 4_Customer.py    # Segmentasi pelanggan
+```

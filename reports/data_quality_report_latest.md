@@ -1,8 +1,8 @@
 # 📋 Laporan Kualitas Data ETL (Before vs After Cleansing)
 
-- **Run ID**: `RUN_20261014_123816_ba6437`
-- **Waktu Eksekusi**: `2026-10-14 12:38:16`
-- **Total Baris Ditolak (Quarantine)**: `104`
+- **Run ID**: `RUN_20261015_133340_54ffa1`
+- **Waktu Eksekusi**: `2026-10-15 13:33:40`
+- **Total Baris Ditolak (Quarantine)**: `103`
 
 ---
 
@@ -14,7 +14,7 @@
 | **Products** | 32,959 | 32,959 | 0 |
 | **Sellers** | 3,103 | 3,103 | 0 |
 | **Orders** | 98,674 | 98,642 | 32 |
-| **Order Items** | 112,660 | 112,623 | 37 |
+| **Order Items** | 112,659 | 112,622 | 37 |
 | **Order Payments** | 103,065 | 103,031 | 34 |
 
 ---
@@ -29,7 +29,7 @@
 | 4 | Data Anomaly | `delivered status but delivery date is null` | 8 | Karantina ke `rejected_rows` |
 | 5 | Data Anomaly | `canceled status but delivery date is present` | 6 | Karantina ke `rejected_rows` |
 | 6 | Data Anomaly | `invalid payment_type domain (suspected column shift containing state code)` | 3 | Karantina ke `rejected_rows` |
-| 7 | Data Anomaly | `duplicate_business_key_order_item` | 2 | Karantina ke `rejected_rows` |
+| 7 | Data Anomaly | `duplicate_business_key_order_item` | 1 | Karantina ke `rejected_rows` |
 | 8 | Data Anomaly | `order delivered before purchase timestamp` | 1 | Karantina ke `rejected_rows` |
 | 9 | Data Anomaly | `estimated delivery date before purchase timestamp` | 1 | Karantina ke `rejected_rows` |
 | 10 | Data Anomaly | `purchase timestamp in future date` | 1 | Karantina ke `rejected_rows` |

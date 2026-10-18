@@ -20,14 +20,14 @@ load_dotenv()
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "3306")
 DB_USER = os.getenv("DB_USER", "root")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_PASSWORD = ""
 DB_NAME = os.getenv("DB_NAME", "oltp_olist")
 CSV_PATH = os.getenv("CSV_PATH", "data/Olist.csv")
 TABLE_NAME = os.getenv("TABLE_NAME", "olist_raw")
 
-if not DB_PASSWORD:
-    print("❌ ERROR: DB_PASSWORD belum diisi di file .env")
-    sys.exit(1)
+#if not DB_PASSWORD:
+#    print("❌ ERROR: DB_PASSWORD belum diisi di file .env")
+#    sys.exit(1)
 
 # ============================================================
 # 2. BIKIN KONEKSI KE MYSQL

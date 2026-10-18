@@ -2,27 +2,34 @@
   pkgs,
   ...
 }:
+let
+  mkMySQL = import ./mysql.nix { inherit pkgs; };
+in
 {
   languages.python = {
     enable = true;
     venv = {
       enable = true;
-      requirements = ./requirements.txt;
+      requirements = builtins.readFile ./requirements.txt;
     };
+    libraries = with pkgs; [
+      zlib
+      stdenv.cc.cc.lib
+      libffi
+      openssl
+      bzip2
+      xz
+    ];
   };
 
-  packages = with pkgs; [
-    python3Packages.numpy
+  packages = [
+    pkgs.mysql84
   ];
 
-  services = {
-    mysql = {
-      enable = true;
-      initialDatabases = [
-        { name = "oltp_olist"; }
-        { name = "dwh_olist"; }
-      ];
-    };
+  processes = {
+    mysql-oltp-br = mkMySQL "oltp-br" 3306;
+    mysql-oltp-id = mkMySQL "oltp-id" 3307;
+    mysql-dwh     = mkMySQL "dwh"     3308;
   };
 
   dotenv.enable = true;

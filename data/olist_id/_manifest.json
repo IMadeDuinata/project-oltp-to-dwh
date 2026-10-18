@@ -1,0 +1,106 @@
+{
+  "config": {
+    "seed": 42,
+    "sample_rate": 0.05,
+    "source_anchor": "data/raw/olist_orders_dataset.csv",
+    "generated_at": "2026-10-18T15:11:54.302395"
+  },
+  "row_counts": {
+    "orders": 4972,
+    "customers": 5071,
+    "order_items": 5659,
+    "products": 3770,
+    "sellers": 1209,
+    "order_payments": 5197,
+    "order_reviews": 4943,
+    "geolocation": 3000,
+    "category_translation": 71
+  },
+  "system_characteristics": [
+    {
+      "id": 1,
+      "table": "orders",
+      "column": "order_purchase_timestamp",
+      "characteristic": "Format tanggal campur (DD/MM/YYYY, MM-DD-YYYY)",
+      "rate": "5%"
+    },
+    {
+      "id": 2,
+      "table": "orders",
+      "column": "order_purchase_timestamp",
+      "characteristic": "Tanggal mustahil (2099-12-31)",
+      "rate": "1%"
+    },
+    {
+      "id": 3,
+      "table": "orders",
+      "column": "order_status",
+      "characteristic": "Status tidak standar (PENDING?, unknown, SHIPPED?)",
+      "rate": "2%"
+    },
+    {
+      "id": 4,
+      "table": "orders",
+      "column": "customer_id",
+      "characteristic": "Orphan FK (customer_id tidak ada di tabel customers)",
+      "rate": "2%"
+    },
+    {
+      "id": 5,
+      "table": "customers",
+      "column": "*",
+      "characteristic": "Duplikasi baris (proses dedup belum jalan)",
+      "rate": "2%"
+    },
+    {
+      "id": 6,
+      "table": "customers",
+      "column": "customer_city/state",
+      "characteristic": "Whitespace + case inconsistency",
+      "rate": "5%"
+    },
+    {
+      "id": 7,
+      "table": "customers",
+      "column": "customer_unique_id",
+      "characteristic": "NULL unique_id (validasi lemah)",
+      "rate": "1%"
+    },
+    {
+      "id": 8,
+      "table": "order_items",
+      "column": "price",
+      "characteristic": "Harga negatif (bug input)",
+      "rate": "2%"
+    },
+    {
+      "id": 9,
+      "table": "order_items",
+      "column": "price",
+      "characteristic": "Outlier ekstrem (999999999)",
+      "rate": "1%"
+    },
+    {
+      "id": 10,
+      "table": "order_payments",
+      "column": "payment_value",
+      "characteristic": "Payment value negatif",
+      "rate": "1%"
+    }
+  ],
+  "category_variants": {
+    "var0": "canonical ID bahasa Indonesia",
+    "var1": "lowercase",
+    "var2": "snake_case",
+    "var3": "truncated (kata pertama)",
+    "var4": "PT untranslated (nama asli Portugis)"
+  },
+  "id_format": {
+    "customer_id": "CID-2024-NNNNN",
+    "customer_unique_id": "UID-2024-NNNNN",
+    "order_id": "ORD-2024-NNNNN",
+    "product_id": "PRD-2024-NNNNN",
+    "seller_id": "SLR-2024-NNNNN",
+    "review_id": "REV-2024-NNNNN"
+  }
+}

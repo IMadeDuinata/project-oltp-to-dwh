@@ -1,9 +1,18 @@
+# Data Ops
+numpy
 pandas
+openpyxl
+
+# Database Integration
 sqlalchemy
 pymysql
 cryptography
+
+# Utility
 python-dotenv
 apscheduler
 pytest
+
+# Dashboard & Visualitation
 streamlit
 plotly

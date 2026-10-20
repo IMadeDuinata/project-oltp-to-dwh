@@ -74,7 +74,7 @@ def generate_data_quality_report(run_id: str, start_time: datetime, audit: dict,
         reason = r["rejection_reason"]
         reason_counts[reason] = reason_counts.get(reason, 0) + 1
 
-    content = f"""# 📋 Laporan Kualitas Data ETL (Before vs After Cleansing)
+    content = f"""# Laporan Kualitas Data ETL (Before vs After Cleansing)
 
 - **Run ID**: `{run_id}`
 - **Waktu Eksekusi**: `{start_time.strftime('%Y-%m-%d %H:%M:%S')}`
@@ -130,7 +130,7 @@ def generate_data_quality_report(run_id: str, start_time: datetime, audit: dict,
     with open(latest_file, "w", encoding="utf-8") as f:
         f.write(content)
 
-    logger.info(f"📊 Laporan kualitas data berhasil disimpan ke `{report_file}`.")
+    logger.info(f"Laporan kualitas data berhasil disimpan ke `{report_file}`.")
 
 
 def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline"):
@@ -153,7 +153,7 @@ def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline
             logger.info(f"Memulai ETL pipeline '{pipeline_name}' (Run ID: {run_id}, Mode: {'Incremental' if incremental else 'Full Load'})")
 
             # 1. EXTRACT KE STAGING & BACA STAGING
-            logger.info("\n[Step 1/4] 📥 EXTRACT OLTP KE STAGING AREA (dwh_staging)...")
+            logger.info("\n[Step 1/4] EXTRACT OLTP KE STAGING AREA (dwh_staging)...")
             progress.start_step("extract", message="Memuat data dari OLTP ke staging...", total=6)
 
             def on_extract_progress(table_name: str, current: int, total: int):
@@ -200,7 +200,7 @@ def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline
             )
 
             # 2. CLEAN
-            logger.info("\n[Step 2/4] 🧹 CLEANSING & VALIDASI DATA...")
+            logger.info("\n[Step 2/4] CLEANSING & VALIDASI DATA...")
             progress.start_step("clean", message="Cleansing dan validasi data...", total=6)
 
             def on_clean_progress(tbl_name: str, current: int, total: int):
@@ -235,7 +235,7 @@ def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline
                 }
 
             # 3. TRANSFORM (Part 1 - Bangun Dimensi)
-            logger.info("\n[Step 3/4] 🔄 TRANSFORM KE STAR SCHEMA...")
+            logger.info("\n[Step 3/4] TRANSFORM KE STAR SCHEMA...")
             progress.start_step("transform", message="Membangun dimensi...", total=8)
             # Bangun dimensi
             dim_cust = build_dim_customer(clean_data["customers"])
@@ -254,7 +254,7 @@ def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline
             progress.update_step("transform", message="[green]5[/green] dimensi terbuild...", completed=5)
 
             # 4. LOAD DIMENSIONS & BUILD SURROGATE KEY MAPPINGS
-            logger.info("\n[Step 4a/4] 📤 LOAD DIMENSI & SURROGATE KEY MAPPING...")
+            logger.info("\n[Step 4a/4] LOAD DIMENSI & SURROGATE KEY MAPPING...")
             progress.start_step("load_dims", message="Memuat dimensi ke DWH...", total=5)
 
             def on_dim_progress(dim_name: str, current: int, total: int):
@@ -269,7 +269,7 @@ def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline
             progress.complete_step("load_dims", message="[green]5/5[/green] dimensi loaded", rows="5 dims")
 
             # Bangun fakta menggunakan surrogate key mappings yang sudah termuat
-            logger.info("\n[Step 4b/4] 🔗 TRANSFORM TABEL FAKTA...")
+            logger.info("\n[Step 4b/4] TRANSFORM TABEL FAKTA...")
             progress.update_step("transform", message="Membangun tabel fakta...", completed=6)
             fact_items = build_fact_order_items(
                 clean_data["order_items"],
@@ -303,7 +303,7 @@ def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline
             )
 
             # 5. LOAD FACTS (TRANSACTIONAL)
-            logger.info("\n[Step 4c/4] 📤 LOAD TABEL FAKTA (TRANSAKSIONAL)...")
+            logger.info("\n[Step 4c/4] LOAD TABEL FAKTA (TRANSAKSIONAL)...")
             progress.start_step("load_facts", message="Memuat tabel fakta (transaksional)...", total=3)
 
             def on_facts_progress(fact_name: str, current: int, total: int):
@@ -330,7 +330,7 @@ def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline
             )
 
             # 6. LOAD REJECTED ROWS (QUARANTINE)
-            logger.info("\n[Step 4d/4] 🛡️ MENYIMPAN BARIS KARANTINA...")
+            logger.info("\n[Step 4d/4] MENYIMPAN BARIS KARANTINA...")
             load_rejected_rows(rejections, run_id=run_id)
 
             # 7. UPDATE WATERMARK JIKA INCREMENTAL
@@ -359,14 +359,14 @@ def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline
             )
 
             logger.info("=" * 60)
-            logger.info(f"🎉 ETL PIPELINE BERHASIL DALAM {time.time() - start_time.timestamp():.2f} DETIK")
+            logger.info(f"ETL PIPELINE BERHASIL DALAM {time.time() - start_time.timestamp():.2f} DETIK")
             logger.info("=" * 60)
             return 0
 
     except Exception as e:
         end_time = datetime.now()
         err_msg = str(e)
-        logger.error(f"❌ ETL PIPELINE GAGAL: {err_msg}", exc_info=True)
+        logger.error(f"ETL PIPELINE GAGAL: {err_msg}", exc_info=True)
         try:
             log_etl_execution(
                 run_id=run_id,

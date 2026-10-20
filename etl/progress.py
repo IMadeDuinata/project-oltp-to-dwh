@@ -177,6 +177,7 @@ class ETLProgress:
             MofNCompleteColumn(table_column=Column(min_width=7, no_wrap=True, justify="right")),
             StepTimeElapsedColumn(),
             console=self.console,
+            expand=True,
         )
 
         # Mapping key -> task_id dan metadata step
@@ -453,6 +454,7 @@ class ETLProgress:
         """Mencetak tabel ringkasan eksekusi ETL (Step | Rows | Duration | Status)."""
         table = Table(
             title=f"Ringkasan Eksekusi Pipeline ETL ({self.run_id})",
+            caption=f"Mode: {self.mode}",
             header_style="bold cyan",
             border_style="blue",
             show_lines=True,
@@ -487,7 +489,12 @@ class ETLProgress:
             if status == "SUCCESS":
                 status_str = "[bold green]SUCCESS[/bold green]"
             elif status == "FAILED":
-                status_str = "[bold red]FAILED[/bold red]"
+                err_msg = step_info.get("message", "")
+                if err_msg and err_msg != "[red]Gagal[/red]":
+                    clean_msg = err_msg.replace("[red]", "").replace("[/red]", "")
+                    status_str = f"[bold red]FAILED[/bold red] ({clean_msg})"
+                else:
+                    status_str = "[bold red]FAILED[/bold red]"
             elif status == "SKIPPED":
                 status_str = "[dim]SKIPPED[/dim]"
             else:

@@ -76,7 +76,7 @@ def get_db_engine():
     return create_engine(url, pool_pre_ping=True)
 
 def init_schema():
-    print(f"\n[1/2] 🔨 Memeriksa / mengeksekusi DDL sql/01_oltp_ddl.sql pada {DB_NAME}...")
+    print(f"\n[1/2] Memeriksa / mengeksekusi DDL sql/01_oltp_ddl.sql pada {DB_NAME}...")
     server_engine = get_server_engine()
     with server_engine.connect() as conn:
         conn.execute(text(f"CREATE DATABASE IF NOT EXISTS `{DB_NAME}` DEFAULT CHARACTER SET utf8mb4;"))
@@ -96,7 +96,7 @@ def init_schema():
     print(" -> Schema DDL berhasil dipersiapkan.")
 
 def load_data(db_engine):
-    print("\n[2/2] 🗄️ Memuat data CSV Brazil ke tabel 3NF OLTP...")
+    print("\n[2/2] Memuat data CSV Brazil ke tabel 3NF OLTP...")
 
     # Truncate tables first to ensure idempotency
     with db_engine.begin() as conn:
@@ -109,7 +109,7 @@ def load_data(db_engine):
         filename = CSV_MAP[tbl]
         file_path = CSV_DIR / filename
         if not file_path.exists():
-            print(f" ⚠️ File tidak ditemukan: {file_path}, lewati tabel `{tbl}`.")
+            print(f" File tidak ditemukan: {file_path}, lewati tabel `{tbl}`.")
             continue
 
         df = pd.read_csv(file_path)
@@ -138,7 +138,7 @@ def load_data(db_engine):
 def main():
     start_time = time.time()
     print("=" * 60)
-    print(f"🚀 LOAD DATASET OLIST BRAZIL KE MYSQL ({DB_NAME})")
+    print(f"LOAD DATASET OLIST BRAZIL KE MYSQL ({DB_NAME})")
     print("=" * 60)
     print(f"Host     : {DB_HOST}:{DB_PORT}")
     print(f"User     : {DB_USER}")
@@ -152,10 +152,10 @@ def main():
         load_data(db_engine)
         elapsed = time.time() - start_time
         print("\n" + "=" * 60)
-        print(f"✨ BERHASIL MEMUAT SELURUH DATA OLTP BRAZIL ({elapsed:.2f} detik) ✨")
+        print(f"BERHASIL MEMUAT SELURUH DATA OLTP BRAZIL ({elapsed:.2f} detik)")
         print("=" * 60)
     except Exception as e:
-        print(f"\n❌ TERJADI KESALAHAN: {e}")
+        print(f"\nTERJADI KESALAHAN: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

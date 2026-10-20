@@ -33,7 +33,6 @@ from dashboard.utils import (
 
 st.set_page_config(
     page_title="Delivery & Logistics SLA | DWH",
-    page_icon="🚚",
     layout="wide",
 )
 
@@ -46,7 +45,7 @@ years = tuple(filters["years"])
 months = tuple(filters["months"])
 
 render_page_header(
-    title="🚚 Operasional Pengiriman & Logistik",
+    title="Operasional Pengiriman & Logistik",
     subtitle="Evaluasi SLA, kepatuhan jadwal kirim (On-Time Delivery), dan identifikasi wilayah rawan keterlambatan.",
     active_country=country,
 )
@@ -157,7 +156,7 @@ def get_delivery_duration_buckets(sel_years, sel_months, sel_country):
 df_deliv = get_delivery_kpis(years, months, country)
 
 if df_deliv.empty:
-    st.warning("⚠️ Tidak ditemukan data pengiriman pada filter yang dipilih.")
+    st.warning("Tidak ditemukan data pengiriman pada filter yang dipilih.")
 else:
     total_deliveries = df_deliv["total_deliveries"].sum()
     total_delayed = df_deliv["delayed_orders"].sum()
@@ -169,7 +168,7 @@ else:
     weighted_est = (df_deliv["avg_estimated_days"] * df_deliv["total_deliveries"]).sum() / total_deliveries if total_deliveries > 0 else 0
     sla_buffer = weighted_est - weighted_actual
 
-    st.markdown('<div class="section-header"><span>⏱️ SLA & Indikator Kinerja Logistik</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><span>SLA & Indikator Kinerja Logistik</span></div>', unsafe_allow_html=True)
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
         render_metric_card("On-Time Delivery", f"{on_time_rate:.1f}%", f"{total_deliveries - total_delayed:,} pesanan tepat waktu", country_badge=country)
@@ -183,7 +182,7 @@ else:
         render_metric_card("Lead Time Buffer", f"{sla_buffer:+.1f} hari", "Tenggat aman sebelum terlambat", country_badge=country)
 
     # ── Monthly Trend Charts ──────────────────────────────────────────────────
-    st.markdown('<div class="section-header"><span>📈 Tren Durasi & Ketepatan Pengiriman Bulanan</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><span>Tren Durasi & Ketepatan Pengiriman Bulanan</span></div>', unsafe_allow_html=True)
     df_trend = get_monthly_delivery_trend(years, months, country)
 
     if not df_trend.empty:
@@ -215,7 +214,7 @@ else:
             st.plotly_chart(apply_plotly_theme(fig_delay, height=360), use_container_width=True)
 
     # ── Distribution & Bottlenecks ────────────────────────────────────────────
-    st.markdown('<div class="section-header"><span>🗺️ Wilayah Bottleneck & Distribusi Kecepatan Kirim</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><span>Wilayah Bottleneck & Distribusi Kecepatan Kirim</span></div>', unsafe_allow_html=True)
     col_b1, col_b2 = st.columns(2)
 
     with col_b1:
@@ -254,7 +253,7 @@ else:
     st.markdown(
         """
         <div class="insight-callout">
-            🚚 <b>Logistics Operational Summary:</b><br>
+            <b>Logistics Operational Summary:</b><br>
             • Rata-rata pengiriman berhasil sampai lebih cepat dari janji estimasi awal (SLA Buffer positif).<br>
             • Wilayah luar pulau atau pelosok menunjukkan kecenderungan keterlambatan lebih tinggi, mengindikasikan perlunya kerja sama dengan kurir regional khusus.
         </div>

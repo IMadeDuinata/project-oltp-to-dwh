@@ -37,7 +37,7 @@ engine = create_engine(url, pool_pre_ping=True)
 
 
 def execute_sql_file(file_path: str):
-    print(f"📄 Menjalankan file DDL: `{file_path}`...")
+    print(f"Menjalankan file DDL: `{file_path}`...")
     with open(file_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
@@ -59,7 +59,7 @@ def execute_sql_file(file_path: str):
 
 def setup_unknown_records():
     """Memasang record Unknown (-1) pada semua dimensi agar FK orphan tidak dibuang."""
-    print("🛡️  Memverifikasi record Unknown (sk = -1) di tabel dimensi...")
+    print("Memverifikasi record Unknown (sk = -1) di tabel dimensi...")
     
     statements = [
         """
@@ -103,7 +103,7 @@ def setup_unknown_records():
     with engine.begin() as conn:
         for stmt in statements:
             conn.execute(text(stmt))
-    print("   ✅ Record Unknown (-1) terpasang di semua dimensi.")
+    print("   Record Unknown (-1) terpasang di semua dimensi.")
 
 
 def main():
@@ -113,11 +113,11 @@ def main():
     args = parser.parse_args()
 
     print("=" * 60)
-    print("🏗️  MEMBUAT STAR SCHEMA DAN SUPPORT TABLES DI DWH")
+    print("MEMBUAT STAR SCHEMA DAN SUPPORT TABLES DI DWH")
     print("=" * 60)
     
     if args.recreate:
-        print("🧹 Menghapus tabel lama di DWH...")
+        print("Menghapus tabel lama di DWH...")
         with engine.begin() as conn:
             conn.execute(text("SET FOREIGN_KEY_CHECKS=0;"))
             drop_tables = [
@@ -129,7 +129,7 @@ def main():
             for t in drop_tables:
                 conn.execute(text(f"DROP TABLE IF EXISTS `{t}`;"))
             conn.execute(text("SET FOREIGN_KEY_CHECKS=1;"))
-        print("   ✅ Tabel lama telah dibersihkan.")
+        print("   Tabel lama telah dibersihkan.")
 
     # 1. Jalankan 02_dwh_ddl.sql
     execute_sql_file("sql/02_dwh_ddl.sql")
@@ -140,7 +140,7 @@ def main():
     # 3. Setup unknown records
     setup_unknown_records()
     
-    print("\n🔍 Verifikasi tabel di dwh_olist:")
+    print("\nVerifikasi tabel di dwh_olist:")
     with engine.connect() as conn:
         res = conn.execute(text("SHOW TABLES"))
         tables = [r[0] for r in res]
@@ -149,7 +149,7 @@ def main():
             print(f"   • {t:22s} : {cnt:>6,} baris")
 
     print("\n" + "=" * 60)
-    print("🎉 STAR SCHEMA & SUPPORT TABLES BERHASIL DIBUAT!")
+    print("STAR SCHEMA & SUPPORT TABLES BERHASIL DIBUAT!")
     print("=" * 60)
 
 

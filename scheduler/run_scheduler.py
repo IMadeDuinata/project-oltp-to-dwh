@@ -32,17 +32,17 @@ logger = logging.getLogger("scheduler")
 
 def execute_etl_job(incremental: bool = True):
     """Fungsi pembungkus eksekusi job ETL oleh scheduler."""
-    logger.info("⏰ Trigger jadwal ETL dimulai...")
+    logger.info("Trigger jadwal ETL dimulai...")
     t0 = time.time()
     try:
         # Menjalankan ETL
         exit_code = run_pipeline(incremental=incremental, pipeline_name="scheduler_olist_pipeline")
         if exit_code == 0:
-            logger.info(f"✅ Job ETL selesai dengan sukses dalam {time.time() - t0:.2f} detik.")
+            logger.info(f"Job ETL selesai dengan sukses dalam {time.time() - t0:.2f} detik.")
         else:
-            logger.error(f"❌ Job ETL selesai dengan kode kegagalan: {exit_code}")
+            logger.error(f"Job ETL selesai dengan kode kegagalan: {exit_code}")
     except Exception as e:
-        logger.error(f"💥 Terjadi kesalahan fatal saat eksekusi job ETL: {e}", exc_info=True)
+        logger.error(f"Terjadi kesalahan fatal saat eksekusi job ETL: {e}", exc_info=True)
 
 
 def main():
@@ -56,14 +56,14 @@ def main():
     is_incremental = not args.full
 
     if args.now:
-        logger.info("🚀 Eksekusi langsung (trigger manual saat start)...")
+        logger.info("Eksekusi langsung (trigger manual saat start)...")
         execute_etl_job(incremental=is_incremental)
 
     if args.demo:
-        logger.info("🧪 Mengaktifkan mode DEMO: jadwal interval setiap 1 menit.")
+        logger.info("Mengaktifkan mode DEMO: jadwal interval setiap 1 menit.")
         trigger = IntervalTrigger(minutes=1)
     else:
-        logger.info("📅 Mengaktifkan mode PRODUKSI: jadwal cron setiap hari pukul 02:00.")
+        logger.info("Mengaktifkan mode PRODUKSI: jadwal cron setiap hari pukul 02:00.")
         trigger = CronTrigger(hour=2, minute=0)
 
     # Tambahkan job dengan max_instances=1 untuk mencegah tumpang tindih run
@@ -78,11 +78,11 @@ def main():
         misfire_grace_time=3600,
     )
 
-    logger.info("⏳ Scheduler aktif. Tekan Ctrl+C untuk berhenti.")
+    logger.info("Scheduler aktif. Tekan Ctrl+C untuk berhenti.")
     try:
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):
-        logger.info("🛑 Scheduler dihentikan.")
+        logger.info("Scheduler dihentikan.")
 
 
 if __name__ == "__main__":

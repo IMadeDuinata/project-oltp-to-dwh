@@ -230,11 +230,11 @@ def render_metric_card(title: str, value: str, subtitle: str = "", country_badge
     if country_badge:
         b_upper = country_badge.upper()
         if "BR" in b_upper:
-            badge_html = f'<span class="badge-country-br">🇧🇷 {b_upper}</span>'
+            badge_html = f'<span class="badge-country-br">{b_upper}</span>'
         elif "ID" in b_upper:
-            badge_html = f'<span class="badge-country-id">🇮🇩 {b_upper}</span>'
+            badge_html = f'<span class="badge-country-id">{b_upper}</span>'
         else:
-            badge_html = f'<span class="badge-country-all">🌐 {b_upper}</span>'
+            badge_html = f'<span class="badge-country-all">{b_upper}</span>'
 
     card_html = f"""
     <div class="metric-card-box">
@@ -255,11 +255,11 @@ def render_page_header(title: str, subtitle: str, active_country: str = "ALL"):
     """Render page hero banner dengan branding konsisten."""
     country_badge = ""
     if active_country == "BR":
-        country_badge = '<span class="badge-country-br" style="font-size:0.85rem; padding:4px 12px; margin-left:12px;">🇧🇷 Filter Aktif: Brazil</span>'
+        country_badge = '<span class="badge-country-br" style="font-size:0.85rem; padding:4px 12px; margin-left:12px;">Filter Aktif: Brazil</span>'
     elif active_country == "ID":
-        country_badge = '<span class="badge-country-id" style="font-size:0.85rem; padding:4px 12px; margin-left:12px;">🇮🇩 Filter Aktif: Indonesia</span>'
+        country_badge = '<span class="badge-country-id" style="font-size:0.85rem; padding:4px 12px; margin-left:12px;">Filter Aktif: Indonesia</span>'
     else:
-        country_badge = '<span class="badge-country-all" style="font-size:0.85rem; padding:4px 12px; margin-left:12px;">🌐 Filter Aktif: Dual Source (BR & ID)</span>'
+        country_badge = '<span class="badge-country-all" style="font-size:0.85rem; padding:4px 12px; margin-left:12px;">Filter Aktif: Dual Source (BR & ID)</span>'
 
     banner_html = f"""
     <div class="page-banner">

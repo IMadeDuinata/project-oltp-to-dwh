@@ -1,4 +1,4 @@
-﻿# Virtual Environment
+# Virtual Environment
 venv/
 env/
 .venv/
@@ -34,6 +34,8 @@ devenv.local.nix
 devenv.local.yaml
 # Report
 reports/
+*.log
+log_etl.txt
 
 # direnv
 .direnv

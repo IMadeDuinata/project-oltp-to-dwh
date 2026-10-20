@@ -37,7 +37,6 @@ from dashboard.utils import (
 # ── Page Setup ────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Executive DWH Overview | Dual-Source Analytics",
-    page_icon="🌐",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -52,7 +51,7 @@ months = tuple(filters["months"])
 
 # ── Hero Banner ───────────────────────────────────────────────────────────────
 render_page_header(
-    title="🌐 Executive DWH Overview",
+    title="Executive DWH Overview",
     subtitle="Dual-Source Strategic Monitoring: Olist Brazil (BR) & Mitra Indonesia (ID)",
     active_country=country,
 )
@@ -144,7 +143,7 @@ def get_top_categories_split(sel_years, sel_months, sel_country):
 df_sales, df_deliv = get_executive_kpis(years, months, country)
 
 if df_sales.empty:
-    st.warning("⚠️ Tidak ada data untuk kombinasi filter yang dipilih.")
+    st.warning("Tidak ada data untuk kombinasi filter yang dipilih.")
 else:
     # Agregasi total KPI
     total_rev = df_sales["total_revenue"].sum()
@@ -157,7 +156,7 @@ else:
     on_time_rate = max(0, 100 - avg_delay_rate)
 
     # ── KPI Cards ─────────────────────────────────────────────────────────────
-    st.markdown('<div class="section-header"><span>📊 Executive KPI Scorecard</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><span>Executive KPI Scorecard</span></div>', unsafe_allow_html=True)
     
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
@@ -198,7 +197,7 @@ else:
 
     # ── Dual-Source Comparison Breakdown ──────────────────────────────────────
     if country == "ALL" and len(df_sales) > 1:
-        st.markdown('<div class="section-header"><span>🌐 Dual-Source Market Share (BR vs ID)</span></div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-header"><span>Dual-Source Market Share (BR vs ID)</span></div>', unsafe_allow_html=True)
         col_share1, col_share2 = st.columns(2)
         
         with col_share1:
@@ -236,7 +235,7 @@ else:
             st.plotly_chart(apply_plotly_theme(fig_pie_ord, height=320), use_container_width=True)
 
     # ── Monthly Revenue & Orders Trend ────────────────────────────────────────
-    st.markdown('<div class="section-header"><span>📈 Tren Pendapatan & Volume Bulanan</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><span>Tren Pendapatan & Volume Bulanan</span></div>', unsafe_allow_html=True)
     df_trend = get_monthly_revenue_trend(years, months, country)
 
     if not df_trend.empty:
@@ -271,7 +270,7 @@ else:
             st.plotly_chart(apply_plotly_theme(fig_ord_bar, height=360), use_container_width=True)
 
     # ── Top Categories Comparison ─────────────────────────────────────────────
-    st.markdown('<div class="section-header"><span>🏆 Kategori Produk Teratas</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><span>Kategori Produk Teratas</span></div>', unsafe_allow_html=True)
     df_cat = get_top_categories_split(years, months, country)
 
     if not df_cat.empty:
@@ -302,7 +301,7 @@ else:
     st.markdown(
         """
         <div class="insight-callout">
-            💡 <b>Executive Insights:</b><br>
+            <b>Executive Insights:</b><br>
             • <b>Market Scale:</b> Olist Brazil (BR) mendominasi nilai transaksi bruto, didorong oleh maturitas katalog dan variasi produk.<br>
             • <b>Market Growth (ID):</b> Pasar Indonesia (ID) memperlihatkan stabilitas operasional pemenuhan pesanan dengan tingkat keterlambatan pengiriman yang sebanding dengan Brazil.<br>
             • <b>Arah Navigasi:</b> Gunakan menu navigasi di sisi kiri untuk melihat eksplorasi terperinci: <i>Revenue & Sales</i>, <i>Delivery Operations</i>, <i>Customer Behavior</i>, dan <i>Payment Methods</i>.

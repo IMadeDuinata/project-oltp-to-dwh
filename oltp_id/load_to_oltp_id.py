@@ -52,7 +52,7 @@ def get_db_engine():
     return create_engine(url, pool_pre_ping=True)
 
 def init_schema():
-    print("\n[1/3] 🔨 Menjalankan DDL schema_indo.sql...")
+    print("\n[1/3] Menjalankan DDL schema_indo.sql...")
     server_engine = get_server_engine()
     with server_engine.connect() as conn:
         conn.execute(text(f"CREATE DATABASE IF NOT EXISTS `{DB_NAME}` DEFAULT CHARACTER SET utf8mb4;"))
@@ -73,7 +73,7 @@ def init_schema():
     print(" -> Schema DDL berhasil dieksekusi.")
 
 def load_staging(db_engine):
-    print("\n[2/3] 📥 Memuat data flat ke tabel staging `olist_raw`...")
+    print("\n[2/3] Memuat data flat ke tabel staging `olist_raw`...")
     # Truncate staging table
     with db_engine.begin() as conn:
         conn.execute(text("TRUNCATE TABLE olist_raw;"))
@@ -116,7 +116,7 @@ def load_staging(db_engine):
     print(f" -> Berhasil memuat {len(df_staging):,} baris ke `olist_raw`.")
 
 def load_3nf(db_engine):
-    print("\n[3/3] 🗄️ Memuat data ke tabel-tabel 3NF OLTP...")
+    print("\n[3/3] Memuat data ke tabel-tabel 3NF OLTP...")
     
     # Truncate tables first to make it idempotent
     tables = [
@@ -179,7 +179,7 @@ def load_3nf(db_engine):
 def main():
     start_time = time.time()
     print("=" * 60)
-    print(f"🚀 LOAD DATASET OLIST INDONESIA KE MYSQL ({DB_NAME})")
+    print(f"LOAD DATASET OLIST INDONESIA KE MYSQL ({DB_NAME})")
     print("=" * 60)
     print(f"Host     : {DB_HOST}:{DB_PORT}")
     print(f"User     : {DB_USER}")
@@ -194,10 +194,10 @@ def main():
         load_3nf(db_engine)
         elapsed = time.time() - start_time
         print("\n" + "=" * 60)
-        print(f"✨ BERHASIL MEMUAT SELURUH DATA OLTP INDONESIA ({elapsed:.2f} detik) ✨")
+        print(f"BERHASIL MEMUAT SELURUH DATA OLTP INDONESIA ({elapsed:.2f} detik)")
         print("=" * 60)
     except Exception as e:
-        print(f"\n❌ TERJADI KESALAHAN: {e}")
+        print(f"\nTERJADI KESALAHAN: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

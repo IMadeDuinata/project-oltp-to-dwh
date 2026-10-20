@@ -34,7 +34,6 @@ from dashboard.utils import (
 
 st.set_page_config(
     page_title="Customer Behavior & Retention | DWH",
-    page_icon="👥",
     layout="wide",
 )
 
@@ -47,7 +46,7 @@ years = tuple(filters["years"])
 months = tuple(filters["months"])
 
 render_page_header(
-    title="👥 Perilaku & Segmentasi Pelanggan",
+    title="Perilaku & Segmentasi Pelanggan",
     subtitle="Menganalisis basis pelanggan unik, tingkat repeat order (loyalitas), dan persebaran geografis pembeli.",
     active_country=country,
 )
@@ -158,7 +157,7 @@ def get_top_customer_cities(sel_years, sel_months, sel_country):
 df_cust = get_customer_summary(years, months, country)
 
 if df_cust.empty:
-    st.warning("⚠️ Tidak ditemukan data customer pada filter yang dipilih.")
+    st.warning("Tidak ditemukan data customer pada filter yang dipilih.")
 else:
     total_cust = df_cust["unique_customers"].sum()
     total_orders = df_cust["total_orders"].sum()
@@ -166,7 +165,7 @@ else:
     orders_per_cust = (total_orders / total_cust) if total_cust > 0 else 0
     spend_per_cust = (total_spend / total_cust) if total_cust > 0 else 0
 
-    st.markdown('<div class="section-header"><span>👥 Metrik Akuisisi & Nilai Pelanggan</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><span>Metrik Akuisisi & Nilai Pelanggan</span></div>', unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         render_metric_card("Total Pelanggan Unik", format_number(total_cust), "Konsumen terverifikasi", country_badge=country)
@@ -179,7 +178,7 @@ else:
         render_metric_card("Total Pembelian Selesai", format_number(total_orders), "Volume order tercatat", country_badge=country)
 
     # ── Frequency Segment & State Distribution ────────────────────────────────
-    st.markdown('<div class="section-header"><span>🔁 Segmen Frekuensi Pembelian & Konsentrasi Wilayah</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><span>Segmen Frekuensi Pembelian & Konsentrasi Wilayah</span></div>', unsafe_allow_html=True)
     col_f1, col_f2 = st.columns(2)
 
     with col_f1:
@@ -215,7 +214,7 @@ else:
             st.plotly_chart(apply_plotly_theme(fig_state, height=380), use_container_width=True)
 
     # ── Top Cities ────────────────────────────────────────────────────────────
-    st.markdown('<div class="section-header"><span>🏙️ Top 10 Kota Pembeli Terbesar</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><span>Top 10 Kota Pembeli Terbesar</span></div>', unsafe_allow_html=True)
     df_city = get_top_customer_cities(years, months, country)
     if not df_city.empty:
         fig_city = px.bar(
@@ -233,7 +232,7 @@ else:
     st.markdown(
         """
         <div class="insight-callout">
-            💡 <b>Customer Retention Takeaways:</b><br>
+            <b>Customer Retention Takeaways:</b><br>
             • Mayoritas pembeli melakukan transaksi tunggal (one-time purchase), yang menjadi karakteristik umum e-commerce marketplace.<br>
             • Peluang pertumbuhan terbesar terletak pada strategi re-engagement (email marketing, promo loyalitas, voucher pembelian kedua) untuk meningkatkan LTV (Lifetime Value).
         </div>

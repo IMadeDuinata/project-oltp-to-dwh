@@ -87,7 +87,7 @@ def mangle_date(ts_str, fmt_choice):
 
 def main():
     print("=" * 60)
-    print("🇮🇩 GENERATING OLIST INDONESIA DATASET (5% sample, deterministic)")
+    print("GENERATING OLIST INDONESIA DATASET (5% sample, deterministic)")
     print("=" * 60)
 
     # 1. Anchor Orders
@@ -373,7 +373,7 @@ def main():
     manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"Manifest written to: {manifest_path}")
     print("=" * 60)
-    print("✨ GENERATION COMPLETE ✨")
+    print("GENERATION COMPLETE")
     print("=" * 60)
 
 if __name__ == "__main__":

@@ -95,16 +95,16 @@ def render_global_sidebar(page_key: str = "main") -> Dict:
     Merender sidebar filter global standar yang konsisten di semua halaman.
     Mengembalikan dict berisi parameter filter yang dipilih pengguna.
     """
-    st.sidebar.markdown("### 🎛️ Global Filters")
+    st.sidebar.markdown("### Global Filters")
     st.sidebar.caption("Filter berlaku untuk seluruh visualisasi & metric.")
 
     options = get_available_filter_options()
 
     # 1. Source Country Selector
     country_labels = {
-        "ALL": "🌐 All Countries (BR + ID)",
-        "BR": "🇧🇷 Brazil (BR)",
-        "ID": "🇮🇩 Indonesia (ID)",
+        "ALL": "All Countries (BR + ID)",
+        "BR": "Brazil (BR)",
+        "ID": "Indonesia (ID)",
     }
     
     country_choice = st.sidebar.radio(

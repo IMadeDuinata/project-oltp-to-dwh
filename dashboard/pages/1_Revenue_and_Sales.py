@@ -34,7 +34,6 @@ from dashboard.utils import (
 
 st.set_page_config(
     page_title="Revenue & Sales Analysis | DWH",
-    page_icon="📈",
     layout="wide",
 )
 
@@ -47,7 +46,7 @@ years = tuple(filters["years"])
 months = tuple(filters["months"])
 
 render_page_header(
-    title="📈 Analisis Penjualan & Pendapatan",
+    title="Analisis Penjualan & Pendapatan",
     subtitle="Mengevaluasi tren GMV, rasio ongkos kirim (freight), performa kategori produk, dan top seller.",
     active_country=country,
 )
@@ -148,7 +147,7 @@ def get_category_metrics(sel_years, sel_months, sel_country):
 df_summary = get_sales_summary(years, months, country)
 
 if df_summary.empty:
-    st.warning("⚠️ Tidak ditemukan data transaksi pada filter yang dipilih.")
+    st.warning("Tidak ditemukan data transaksi pada filter yang dipilih.")
 else:
     total_gmv = df_summary["total_gmv"].sum()
     total_price = df_summary["total_item_price"].sum()
@@ -158,7 +157,7 @@ else:
     avg_price = total_price / total_items if total_items > 0 else 0
     avg_freight = total_freight / total_items if total_items > 0 else 0
 
-    st.markdown('<div class="section-header"><span>💰 Metrik Finansial & Komposisi Nilai</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><span>Metrik Finansial & Komposisi Nilai</span></div>', unsafe_allow_html=True)
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
         render_metric_card("Total GMV", f"R$ {total_gmv:,.0f}", "Item Price + Freight", country_badge=country)
@@ -172,7 +171,7 @@ else:
         render_metric_card("Average Freight", f"R$ {avg_freight:,.2f}", "Rata-rata ongkir/item", country_badge=country)
 
     # ── Monthly Trend ─────────────────────────────────────────────────────────
-    st.markdown('<div class="section-header"><span>📅 Tren Penjualan & Komponen Ongkir</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><span>Tren Penjualan & Komponen Ongkir</span></div>', unsafe_allow_html=True)
     df_monthly = get_monthly_sales_breakdown(years, months, country)
 
     if not df_monthly.empty:
@@ -206,7 +205,7 @@ else:
             st.plotly_chart(fig_area, use_container_width=True)
 
     # ── Category & Seller Ranking ─────────────────────────────────────────────
-    st.markdown('<div class="section-header"><span>🏆 Analisis Kategori & Top Penjual</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><span>Analisis Kategori & Top Penjual</span></div>', unsafe_allow_html=True)
     col_c1, col_c2 = st.columns(2)
 
     with col_c1:

@@ -23,7 +23,7 @@ engine = get_dwh_engine()
 def run_query(title: str, sql: str) -> pd.DataFrame:
     """Helper untuk menjalankan dan mencetak hasil query dengan rapi."""
     print("\n" + "=" * 75)
-    print(f"📊 {title}")
+    print(f"{title}")
     print("=" * 75)
     df = pd.read_sql(sql, engine)
     print(df.to_string(index=False))
@@ -32,7 +32,7 @@ def run_query(title: str, sql: str) -> pd.DataFrame:
 
 def main():
     print("=" * 75)
-    print("📈 ANALISIS DATA WAREHOUSE OLIST — BUSINESS INSIGHTS")
+    print("ANALISIS DATA WAREHOUSE OLIST — BUSINESS INSIGHTS")
     print("=" * 75)
 
     # 1. TOTAL REVENUE & ORDER PER TAHUN (Grain: fact_order_items)
@@ -259,7 +259,7 @@ def main():
     )
 
     print("\n" + "=" * 75)
-    print("🎉 SEMUA QUERY ANALITIK SELESAI DIEKSEKUSI!")
+    print("SEMUA QUERY ANALITIK SELESAI DIEKSEKUSI!")
     print("=" * 75)
 
 

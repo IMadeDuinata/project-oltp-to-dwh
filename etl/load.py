@@ -385,7 +385,7 @@ def load_facts_transactional(
         if on_progress:
             on_progress("fact_order_payments", 3, 3)
 
-    logger.info(f"✅ Berhasil memuat total {total_loaded:,} baris fakta.")
+    logger.info(f"Berhasil memuat total {total_loaded:,} baris fakta.")
     return total_loaded
 
 

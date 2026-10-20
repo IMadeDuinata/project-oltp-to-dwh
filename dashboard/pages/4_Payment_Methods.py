@@ -35,7 +35,6 @@ from dashboard.utils import (
 
 st.set_page_config(
     page_title="Payment Methods & Installments | DWH",
-    page_icon="💳",
     layout="wide",
 )
 
@@ -48,7 +47,7 @@ years = tuple(filters["years"])
 months = tuple(filters["months"])
 
 render_page_header(
-    title="💳 Analisis Metode Pembayaran & Pembiayaan",
+    title="Analisis Metode Pembayaran & Pembiayaan",
     subtitle="Membedah penetrasi tipe pembayaran (Credit Card, Boleto, dsb.), rata-rata cicilan, dan ticket size per channel.",
     active_country=country,
 )
@@ -130,7 +129,7 @@ def get_monthly_payment_share(sel_years, sel_months, sel_country):
 df_pay = get_payment_summary(years, months, country)
 
 if df_pay.empty:
-    st.warning("⚠️ Tidak ditemukan data transaksi pembayaran pada filter yang dipilih.")
+    st.warning("Tidak ditemukan data transaksi pembayaran pada filter yang dipilih.")
 else:
     total_val = df_pay["total_value"].sum()
     total_tx = df_pay["total_transactions"].sum()
@@ -139,7 +138,7 @@ else:
     # Hitung rata-rata cicilan berbobot
     avg_inst = (df_pay["avg_installments"] * df_pay["total_transactions"]).sum() / total_tx if total_tx > 0 else 0
 
-    st.markdown('<div class="section-header"><span>💳 Metrik Volume & Karakteristik Transaksi</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><span>Metrik Volume & Karakteristik Transaksi</span></div>', unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         render_metric_card("Total Pembayaran Diproses", f"R$ {total_val:,.0f}", "Nilai total disbursement", country_badge=country)
@@ -151,7 +150,7 @@ else:
         render_metric_card("Rata-rata Jumlah Cicilan", f"{avg_inst:.1f}x", "Tingkat fleksibilitas pembayaran", country_badge=country)
 
     # ── Charts Row 1: Payment Method Share & Ticket Size ─────────────────────
-    st.markdown('<div class="section-header"><span>📊 Komposisi Metode Pembayaran & Rata-rata Nilai</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><span>Komposisi Metode Pembayaran & Rata-rata Nilai</span></div>', unsafe_allow_html=True)
     col_p1, col_p2 = st.columns(2)
 
     with col_p1:
@@ -190,7 +189,7 @@ else:
         st.plotly_chart(apply_plotly_theme(fig_ticket, height=360), use_container_width=True)
 
     # ── Installments & Timeline Trends ────────────────────────────────────────
-    st.markdown('<div class="section-header"><span>🔢 Distribusi Cicilan & Evolusi Bulanan</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><span>Distribusi Cicilan & Evolusi Bulanan</span></div>', unsafe_allow_html=True)
     col_i1, col_i2 = st.columns(2)
 
     with col_i1:
@@ -225,7 +224,7 @@ else:
     st.markdown(
         """
         <div class="insight-callout">
-            💳 <b>Payment Strategy Summary:</b><br>
+            <b>Payment Strategy Summary:</b><br>
             • <b>Credit Card Dominance:</b> Kartu kredit menyumbang porsi transaksi terbesar sekaligus memberikan ticket size rata-rata tertinggi berkat opsi cicilan multi-bulan.<br>
             • <b>Cash / Voucher Alternatives:</b> Metode non-kredit (seperti boleto / transfer) populer untuk transaksi bernilai lebih kecil atau segmen unbanked.
         </div>

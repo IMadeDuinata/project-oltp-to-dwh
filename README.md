@@ -24,49 +24,64 @@ Pipeline data engineering end-to-end yang memuat dataset e-commerce Brasil (Olis
 
 ```mermaid
 flowchart TD
-    subgraph Ingestion["1. Ingestion & Landing"]
-        RAW["data/raw/*.csv"] --> STG["oltp/load_staging.py"]
-        INJ["inject_dirty_data.py"] -.-> STG
-        STG --> OLIST_RAW["oltp_olist.olist_raw (Staging Table)"]
+    subgraph S1["1. OLTP Brazil (Port 3306 - oltp_olist)"]
+        BR_RAW["data/raw/*.csv"] --> BR_LOAD["oltp/load_br.py"]
+        BR_LOAD --> BR_T["Tabel 3NF: customers, products, sellers, orders, items, payments"]
     end
 
-    subgraph OLTP["2. OLTP Normalized (3NF)"]
-        OLIST_RAW --> SPLIT["oltp/split_to_oltp.py"]
-        SPLIT --> T_CUST["customers"]
-        SPLIT --> T_PROD["products"]
-        SPLIT --> T_SELL["sellers"]
-        SPLIT --> T_ORD["orders"]
-        SPLIT --> T_ITEM["order_items"]
-        SPLIT --> T_PAY["order_payments"]
+    subgraph S2["2. OLTP Indonesia (Port 3307 - olist_oltp_id)"]
+        ID_GEN["oltp_id/generate_olist_id.py<br/>(Simulasi Dirty Data)"] --> ID_CSV["data/olist_id/*.csv"]
+        ID_CSV --> ID_LOAD["oltp_id/load_to_oltp_id.py"]
+        ID_LOAD --> ID_T["Tabel 3NF: customers, products, sellers, orders, items, payments"]
     end
 
-    subgraph ETL["3. Modular ETL Engine (etl/)"]
-        EXT["etl/extract.py"] --> CLN["etl/clean.py"]
-        CLN --> |Data Bersih| TRF["etl/transform.py"]
-        CLN --> |Baris Ditolak| REJ["dwh_olist.rejected_rows (Quarantine)"]
-        TRF --> LOAD["etl/load.py"]
-        LOAD --> LOG["dwh_olist.etl_log (Audit Log)"]
-        LOAD --> WM["dwh_olist.etl_watermark"]
-        LOAD --> REP["reports/data_quality_report_latest.md"]
+    subgraph DWH_SRV["Server DWH (Port 3308)"]
+        subgraph STG["3. Staging Area Fisik (dwh_staging)"]
+            STG_C["stg_customers"]
+            STG_P["stg_products"]
+            STG_S["stg_sellers"]
+            STG_O["stg_orders"]
+            STG_I["stg_order_items"]
+            STG_PAY["stg_order_payments"]
+        end
+
+        subgraph ETL["4. Modular ETL Engine (etl/)"]
+            EXT["etl/extract.py (load_staging & extract)"]
+            REC["etl/reconcile.py (Harmonisasi Schema)"]
+            CLN["etl/clean.py (Multi-Technique Cleansing)"]
+            TRF["etl/transform.py (Star Schema Mapping)"]
+            LOAD["etl/load.py (Idempotent Load)"]
+            REJ["dwh_olist.rejected_rows (Quarantine)"]
+            LOG["dwh_olist.etl_log & etl_watermark"]
+        end
+
+        subgraph DWH["5. Data Warehouse Star Schema (dwh_olist)"]
+            D_CUST["dim_customer (SCD Type 2)"]
+            D_PROD["dim_product"]
+            D_SELL["dim_seller"]
+            D_PAY["dim_payment_type"]
+            D_DATE["dim_date (Role-Playing)"]
+            F_ITEM["fact_order_items (Grain: Order + Item)"]
+            F_DELIV["fact_order_delivery (Grain: Order)"]
+            F_PAY["fact_order_payments (Grain: Order + Payment)"]
+        end
     end
 
-    subgraph DWH["4. Data Warehouse (dwh_olist) - Star Schema"]
-        LOAD --> D_CUST["dim_customer (SCD Type 2)"]
-        LOAD --> D_PROD["dim_product"]
-        LOAD --> D_SELL["dim_seller"]
-        LOAD --> D_PAY["dim_payment_type"]
-        LOAD --> D_DATE["dim_date (Role-Playing)"]
-        LOAD --> F_ITEM["fact_order_items (Grain: Order + Item)"]
-        LOAD --> F_DELIV["fact_order_delivery (Grain: Order)"]
+    subgraph Serving["6. Serving & Automation"]
+        DASH["dashboard/main.py<br/>(Streamlit Interactive Dashboard)"]
+        SCHED["scheduler/run_scheduler.py<br/>(APScheduler & systemd)"]
     end
 
-    subgraph Serving["5. Analytics & Scheduling"]
-        F_ITEM --> ANL["etl/analytics.py"]
-        F_DELIV --> ANL
-        SCHED["scheduler/run_scheduler.py<br/>(APScheduler & systemd)"] --> |Orkestrasi Berkala| ETL
-    end
-
-    T_CUST & T_PROD & T_SELL & T_ORD & T_ITEM & T_PAY --> EXT
+    BR_T & ID_T -->|"Pendaratan Data Mentah (Permissive VARCHAR)"| EXT
+    EXT --> STG
+    STG --> REC --> CLN
+    CLN --> |Baris Cacat/Kotor| REJ
+    CLN --> |Data Bersih| TRF --> LOAD
+    LOAD --> D_CUST & D_PROD & D_SELL & D_PAY & D_DATE
+    LOAD --> F_ITEM & F_DELIV & F_PAY
+    LOAD --> LOG
+    DWH --> DASH
+    SCHED --> |Trigger Berkala| ETL
 ```
 
 ---
@@ -331,31 +346,47 @@ project-oltp-to-dwh/
 
 ### 1. Prasyarat
 - Python 3.10+
-- MySQL Server 8.0+ (Local atau via Docker)
+- Docker & Docker Compose (atau `devenv` / MySQL Server lokal)
 
-### 2. Setup Virtual Environment
+### 2. Setup Database via Docker Compose
+Jalankan ketiga instance MySQL (OLTP Brazil, OLTP Indonesia, dan DWH/Staging) secara instan:
+```bash
+docker compose up -d
+```
+> *Container ports:*  
+> - `mysql-oltp-br`: Port **3306** (`oltp_olist`)  
+> - `mysql-oltp-id`: Port **3307** (`olist_oltp_id`)  
+> - `mysql-dwh`: Port **3308** (`dwh_olist` & `dwh_staging`)  
+
+### 3. Setup Virtual Environment
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Konfigurasi `.env`
+### 4. Konfigurasi `.env`
 Salin template konfigurasi dan sesuaikan kredensial MySQL kamu:
 ```bash
 cp .env.example .env
 ```
 Isi file `.env`:
 ```ini
+# Database Host & Auth
 DB_HOST=127.0.0.1
-DB_PORT=3306
 DB_USER=root
-DB_PASSWORD=secret
-DB_NAME_OLTP=oltp_olist
+DB_PASSWORD=
+
+# Port Mapping Multi-Database
+DB_PORT_OLTP_BR=3306
+DB_PORT_OLTP_ID=3307
+DB_PORT_DWH=3308
+
+# Database Names
+DB_NAME_OLTP_BR=oltp_olist
+DB_NAME_OLTP_ID=olist_oltp_id
 DB_NAME_DWH=dwh_olist
-DB_NAME=oltp_olist
-CSV_PATH=data/Olist.csv
-TABLE_NAME=olist_raw
+DB_NAME_STAGING=dwh_staging
 ```
 
 ---
@@ -365,23 +396,28 @@ TABLE_NAME=olist_raw
 Jalankan tahapan berikut secara berurutan:
 
 ```bash
-# 1. Muat dataset mentah ke staging table olist_raw (sekaligus injeksi data kotor terkontrol)
-python oltp/load_staging.py
+# 1. Pastikan container database aktif
+docker compose up -d
 
-# 2. Pecah staging ke skema OLTP 3NF (data kotor dibiarkan apa adanya)
-python oltp/split_to_oltp.py
-
-# 3. Buat skema DWH Star Schema dan Support Tables (etl_log, rejected_rows, etl_watermark)
+# 2. Inisialisasi skema DWH Star Schema & Support Tables
 python dwh/create_star_schema.py --recreate
 
-# 4. Jalankan Orkestrator ETL (Extract -> Clean -> Transform -> Load)
+# 3. Muat data OLTP Brazil (data mentah Kaggle)
+python oltp/load_br.py
+
+# 4. Generate & muat OLTP Indonesia (simulasi dirty data terkontrol)
+python oltp_id/generate_olist_id.py
+python oltp_id/load_to_oltp_id.py
+
+# 5. Jalankan Orkestrator ETL
+# (Ekstrak ke dwh_staging -> Cleansing -> Transform -> Load ke dwh_olist)
 python etl/run_etl.py
 
-# 5. Jalankan Query Analitik Bisnis
-python etl/analytics.py
+# 6. Jalankan Visualisasi Bisnis Dashboard (Streamlit)
+streamlit run dashboard/main.py
 
-# 6. Jalankan Test Suite Pytest
-python -m pytest -v tests/
+# 7. Jalankan Test Suite Pytest (12 Tests: Integrity, Cleansing, Progress)
+pytest
 ```
 
 ---

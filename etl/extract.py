@@ -1,9 +1,5 @@
 """
-Modul Extract: Membaca data dari dual-source database OLTP (Brazil dan Indonesia).
-Mendukung:
-1. Full Extract (kedua source)
-2. Incremental Extract menggunakan watermark (hanya untuk Brazil saat ini)
-3. Source tagging kolom `source_country` ('BR' / 'ID')
+Modul Extract: Ekstraksi data dari dual-source OLTP (Brazil & Indonesia) serta Physical Staging Area.
 """
 
 import os
@@ -11,14 +7,12 @@ import sys
 import logging
 from datetime import datetime
 from typing import Callable, Optional
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
 import pandas as pd
 from sqlalchemy import text
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from etl.config import (
-    get_oltp_engine,
     get_oltp_br_engine,
     get_oltp_id_engine,
     get_dwh_engine,
@@ -27,28 +21,30 @@ from etl.config import (
 
 logger = logging.getLogger(__name__)
 
+STAGING_MAP = {
+    "customers": "stg_customers",
+    "products": "stg_products",
+    "sellers": "stg_sellers",
+    "orders": "stg_orders",
+    "order_items": "stg_order_items",
+    "order_payments": "stg_order_payments",
+}
 
-def get_last_watermark(pipeline_name="olist_pipeline") -> datetime | None:
+
+def get_last_watermark(pipeline_name: str = "olist_pipeline") -> datetime | None:
     """Mengambil nilai watermark terakhir dari tabel dwh_olist.etl_watermark."""
-    dwh_engine = get_dwh_engine()
-    query = text("""
-        SELECT last_watermark_value 
-        FROM etl_watermark 
-        WHERE pipeline_name = :pname
-    """)
+    query = text("SELECT last_watermark_value FROM etl_watermark WHERE pipeline_name = :pname")
     try:
-        with dwh_engine.connect() as conn:
+        with get_dwh_engine().connect() as conn:
             res = conn.execute(query, {"pname": pipeline_name}).scalar()
-            if res:
-                return pd.to_datetime(res)
+            return pd.to_datetime(res) if res else None
     except Exception as e:
         logger.warning(f"Tidak dapat membaca watermark: {e}")
-    return None
+        return None
 
 
-def update_watermark(new_watermark_value: str, pipeline_name="olist_pipeline"):
+def update_watermark(new_watermark_value: str, pipeline_name: str = "olist_pipeline") -> None:
     """Menyimpan nilai watermark baru ke dwh_olist.etl_watermark."""
-    dwh_engine = get_dwh_engine()
     query = text("""
         INSERT INTO etl_watermark (pipeline_name, watermark_column, last_watermark_value, updated_at)
         VALUES (:pname, 'order_purchase_timestamp', :wval, NOW())
@@ -56,7 +52,7 @@ def update_watermark(new_watermark_value: str, pipeline_name="olist_pipeline"):
             last_watermark_value = VALUES(last_watermark_value),
             updated_at = NOW()
     """)
-    with dwh_engine.begin() as conn:
+    with get_dwh_engine().begin() as conn:
         conn.execute(query, {"pname": pipeline_name, "wval": str(new_watermark_value)})
 
 
@@ -67,133 +63,82 @@ def extract_from_source(
     watermark: datetime | None = None,
     on_progress: Optional[Callable[[str, int, int], None]] = None,
 ) -> dict[str, pd.DataFrame]:
-    """
-    Ekstrak data dari satu source database OLTP dan beri tag kolom `source_country`.
-    Tabel yang diekstrak: customers, products, sellers, orders, order_items, order_payments.
-    """
+    """Ekstrak tabel-tabel OLTP dari satu source engine dan beri tag kolom `source_country`."""
     prefix = f"[{source_country}]"
     data: dict[str, pd.DataFrame] = {}
     logger.info(f"{prefix} Memulai extract (incremental={incremental})...")
 
-    # Tabel Master selalu diekstrak penuh
+    # 1. Master Tables (Selalu diekstrak penuh)
     master_tables = ["customers", "products", "sellers"]
     for idx, tbl in enumerate(master_tables, start=1):
-        logger.info(f"{prefix} Extract tabel `{tbl}`...")
         df = pd.read_sql(f"SELECT * FROM `{tbl}`", engine)
         data[tbl] = df
-        logger.info(f"{prefix}   -> {len(df):,} baris diekstrak dari `{tbl}`")
+        logger.info(f"{prefix} `{tbl}`: {len(df):,} baris")
         if on_progress:
             on_progress(f"{prefix} {tbl}", idx, 6)
 
-    # Ekstrak orders, items, payments
+    # 2. Transaction Tables
     if incremental and watermark:
-        logger.info(f"{prefix} Extract incremental dengan watermark order_purchase_timestamp > '{watermark}'")
+        logger.info(f"{prefix} Incremental extract > '{watermark}'")
         order_query = text("SELECT * FROM orders WHERE order_purchase_timestamp > :wm")
         df_orders = pd.read_sql(order_query, engine, params={"wm": watermark})
         data["orders"] = df_orders
 
         if not df_orders.empty:
             order_ids = tuple(df_orders["order_id"].tolist())
-            items_query = text("SELECT * FROM order_items WHERE order_id IN :oids")
-            pay_query = text("SELECT * FROM order_payments WHERE order_id IN :oids")
-            data["order_items"] = pd.read_sql(items_query, engine, params={"oids": order_ids})
-            data["order_payments"] = pd.read_sql(pay_query, engine, params={"oids": order_ids})
+            data["order_items"] = pd.read_sql(text("SELECT * FROM order_items WHERE order_id IN :oids"), engine, params={"oids": order_ids})
+            data["order_payments"] = pd.read_sql(text("SELECT * FROM order_payments WHERE order_id IN :oids"), engine, params={"oids": order_ids})
         else:
             data["order_items"] = pd.DataFrame()
             data["order_payments"] = pd.DataFrame()
     else:
-        logger.info(f"{prefix} Extract full load untuk orders, items, dan payments...")
-        data["orders"] = pd.read_sql("SELECT * FROM orders", engine)
+        for tbl in ["orders", "order_items", "order_payments"]:
+            data[tbl] = pd.read_sql(f"SELECT * FROM `{tbl}`", engine)
+
+    for idx, tbl in enumerate(["orders", "order_items", "order_payments"], start=4):
+        logger.info(f"{prefix} `{tbl}`: {len(data[tbl]):,} baris")
         if on_progress:
-            on_progress(f"{prefix} orders", 4, 6)
+            on_progress(f"{prefix} {tbl}", idx, 6)
 
-        data["order_items"] = pd.read_sql("SELECT * FROM order_items", engine)
-        if on_progress:
-            on_progress(f"{prefix} order_items", 5, 6)
-
-        data["order_payments"] = pd.read_sql("SELECT * FROM order_payments", engine)
-        if on_progress:
-            on_progress(f"{prefix} order_payments", 6, 6)
-
-    logger.info(f"{prefix}   -> {len(data['orders']):,} baris dari `orders`")
-    if incremental and watermark and on_progress:
-        on_progress(f"{prefix} orders", 4, 6)
-
-    logger.info(f"{prefix}   -> {len(data['order_items']):,} baris dari `order_items`")
-    if incremental and watermark and on_progress:
-        on_progress(f"{prefix} order_items", 5, 6)
-
-    logger.info(f"{prefix}   -> {len(data['order_payments']):,} baris dari `order_payments`")
-    if incremental and watermark and on_progress:
-        on_progress(f"{prefix} order_payments", 6, 6)
-
-    # Tagging source_country pada setiap tabel
-    for tbl in ["customers", "products", "sellers", "orders", "order_items", "order_payments"]:
-        if tbl in data and not data[tbl].empty:
-            data[tbl]["source_country"] = source_country
-        elif tbl in data:
-            data[tbl]["source_country"] = pd.Series(dtype="object")
+    # Tagging source_country
+    for tbl in list(STAGING_MAP.keys()):
+        if tbl in data:
+            data[tbl]["source_country"] = source_country if not data[tbl].empty else pd.Series(dtype="object")
 
     return data
 
 
 def extract_oltp_data(
     incremental: bool = False,
-    pipeline_name="olist_pipeline",
+    pipeline_name: str = "olist_pipeline",
     on_progress: Optional[Callable[[str, int, int], None]] = None,
 ) -> dict[str, pd.DataFrame]:
-    """
-    Orchestrator dual-source extract:
-    - Mengekstrak data dari Brazil (BR) menggunakan engine BR (incremental didukung).
-    - Mengekstrak data dari Indonesia (ID) menggunakan engine ID (selalu full load untuk saat ini).
-    - Menggabungkan data per tabel dan menghasilkan dict gabungan dengan tag source_country.
-    """
+    """Orkestrator ekstraksi gabungan dari OLTP Brazil dan Indonesia."""
     logger.info(f"Memulai dual-source extract (incremental={incremental}, pipeline={pipeline_name})...")
 
-    # 1. Source Brazil
-    engine_br = get_oltp_br_engine()
-    watermark_br = get_last_watermark(pipeline_name) if incremental else None
     data_br = extract_from_source(
-        engine=engine_br,
+        engine=get_oltp_br_engine(),
         source_country="BR",
         incremental=incremental,
-        watermark=watermark_br,
+        watermark=get_last_watermark(pipeline_name) if incremental else None,
         on_progress=on_progress,
     )
 
-    # 2. Source Indonesia
-    # Catatan: ID selalu full extract pada fase ini karena timestamp formatnya campur / VARCHAR
-    engine_id = get_oltp_id_engine()
     data_id = extract_from_source(
-        engine=engine_id,
+        engine=get_oltp_id_engine(),
         source_country="ID",
         incremental=False,
         watermark=None,
         on_progress=on_progress,
     )
 
-    # 3. Penggabungan per tabel
     combined_data: dict[str, pd.DataFrame] = {}
-    tables = ["customers", "products", "sellers", "orders", "order_items", "order_payments"]
-
-    for tbl in tables:
+    for tbl in STAGING_MAP.keys():
         df_br = data_br.get(tbl, pd.DataFrame())
         df_id = data_id.get(tbl, pd.DataFrame())
-
-        # Deteksi tipe kolom yang tidak cocok antar source untuk logging warning
-        common_cols = set(df_br.columns).intersection(set(df_id.columns))
-        for col in common_cols:
-            dtype_br = df_br[col].dtype
-            dtype_id = df_id[col].dtype
-            if dtype_br != dtype_id:
-                logger.warning(
-                    f"Schema mismatch terdeteksi pada tabel `{tbl}`, kolom `{col}`: "
-                    f"BR ({dtype_br}) vs ID ({dtype_id}). Akan diserahkan ke reconcile/clean phase."
-                )
-
         combined_df = pd.concat([df_br, df_id], ignore_index=True)
         combined_data[tbl] = combined_df
-        logger.info(f"[COMBINED] `{tbl}`: total {len(combined_df):,} baris ({len(df_br):,} BR + {len(df_id):,} ID)")
+        logger.info(f"[COMBINED] `{tbl}`: {len(combined_df):,} baris ({len(df_br):,} BR + {len(df_id):,} ID)")
 
     return combined_data
 
@@ -204,86 +149,49 @@ def load_oltp_to_staging(
     pipeline_name: str = "olist_pipeline",
     on_progress: Optional[Callable[[str, int, int], None]] = None,
 ) -> dict[str, int]:
-    """
-    Memuat data hasil extract OLTP ke tabel staging fisik per entitas di database dwh_staging.
-    Tabel tujuan:
-    - stg_customers
-    - stg_products
-    - stg_sellers
-    - stg_orders
-    - stg_order_items
-    - stg_order_payments
-    """
+    """Memuat data hasil extract OLTP ke tabel staging fisik di database dwh_staging."""
     if raw_data is None:
-        raw_data = extract_oltp_data(
-            incremental=incremental,
-            pipeline_name=pipeline_name,
-            on_progress=on_progress,
-        )
+        raw_data = extract_oltp_data(incremental=incremental, pipeline_name=pipeline_name, on_progress=on_progress)
 
     stg_engine = get_staging_engine()
-    staging_map = {
-        "customers": "stg_customers",
-        "products": "stg_products",
-        "sellers": "stg_sellers",
-        "orders": "stg_orders",
-        "order_items": "stg_order_items",
-        "order_payments": "stg_order_payments",
-    }
-
     counts = {}
+
     with stg_engine.begin() as conn:
-        for entity, stg_table in staging_map.items():
+        for entity, stg_table in STAGING_MAP.items():
             if entity not in raw_data or raw_data[entity].empty:
                 continue
 
             df = raw_data[entity].copy()
             df["_source_country"] = df["source_country"]
             df["_extracted_at"] = datetime.now()
+            df_stg = df.drop(columns=[c for c in ["source_country"] if c in df.columns])
 
-            # Buang kolom yang tidak ada di DDL stg_*
-            cols_to_drop = [c for c in ["source_country"] if c in df.columns]
-            df_stg = df.drop(columns=cols_to_drop)
-
-            # Truncate jika full load
             if not incremental:
                 conn.execute(text(f"TRUNCATE TABLE `{stg_table}`"))
 
             df_stg.to_sql(stg_table, conn, if_exists="append", index=False, chunksize=2000)
             counts[stg_table] = len(df_stg)
-            logger.info(f"  -> {len(df_stg):,} baris berhasil dimuat ke `{stg_table}`")
+            logger.info(f"Staging `{stg_table}`: {len(df_stg):,} baris termuat.")
 
     return counts
 
 
 def extract_from_staging() -> dict[str, pd.DataFrame]:
-    """
-    Mengekstrak data mentah dari tabel staging fisik dwh_staging untuk diproses oleh pipeline ETL.
-    """
+    """Mengekstrak data mentah dari database staging fisik dwh_staging."""
     stg_engine = get_staging_engine()
-    staging_map = {
-        "customers": "stg_customers",
-        "products": "stg_products",
-        "sellers": "stg_sellers",
-        "orders": "stg_orders",
-        "order_items": "stg_order_items",
-        "order_payments": "stg_order_payments",
-    }
-
     data: dict[str, pd.DataFrame] = {}
+
     with stg_engine.connect() as conn:
-        for entity, stg_table in staging_map.items():
+        for entity, stg_table in STAGING_MAP.items():
             df = pd.read_sql(f"SELECT * FROM `{stg_table}`", conn)
-            # Pulihkan kolom source_country dari _source_country
             if "_source_country" in df.columns:
                 df["source_country"] = df["_source_country"]
                 df = df.drop(columns=["_source_country"])
-            if "_stg_id" in df.columns:
-                df = df.drop(columns=["_stg_id"])
-            if "_extracted_at" in df.columns:
-                df = df.drop(columns=["_extracted_at"])
+            drop_cols = [c for c in ["_stg_id", "_extracted_at"] if c in df.columns]
+            if drop_cols:
+                df = df.drop(columns=drop_cols)
             data[entity] = df
-            logger.info(f"  -> {len(df):,} baris diekstrak dari `{stg_table}`")
+            logger.info(f"Extract staging `{stg_table}`: {len(df):,} baris.")
 
     return data
 

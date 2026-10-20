@@ -14,6 +14,7 @@ import logging
 import pandas as pd
 from sqlalchemy import text
 from datetime import datetime
+from typing import Callable, Optional
 
 from etl.config import get_dwh_engine
 
@@ -314,7 +315,8 @@ def load_facts_transactional(
     fact_order_delivery: pd.DataFrame,
     fact_order_payments: pd.DataFrame,
     incremental: bool = False,
-    order_ids: list | None = None
+    order_ids: list | None = None,
+    on_progress: Optional[Callable[[str, int, int], None]] = None,
 ) -> int:
     """
     Memuat tabel fakta secara transaksional:
@@ -352,6 +354,8 @@ def load_facts_transactional(
             method="multi"
         )
         total_loaded += len(fact_order_items)
+        if on_progress:
+            on_progress("fact_order_items", 1, 3)
 
         # Insert fact_order_delivery
         logger.info(f"Insert {len(fact_order_delivery):,} baris ke fact_order_delivery...")
@@ -364,6 +368,8 @@ def load_facts_transactional(
             method="multi"
         )
         total_loaded += len(fact_order_delivery)
+        if on_progress:
+            on_progress("fact_order_delivery", 2, 3)
 
         # Insert fact_order_payments
         logger.info(f"Insert {len(fact_order_payments):,} baris ke fact_order_payments...")
@@ -376,6 +382,8 @@ def load_facts_transactional(
             method="multi"
         )
         total_loaded += len(fact_order_payments)
+        if on_progress:
+            on_progress("fact_order_payments", 3, 3)
 
     logger.info(f"✅ Berhasil memuat total {total_loaded:,} baris fakta.")
     return total_loaded

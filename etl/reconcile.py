@@ -7,6 +7,7 @@ Tujuan:
 """
 
 import logging
+from typing import Callable, Optional
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -76,7 +77,10 @@ def _harmonize_numerics(df: pd.DataFrame, numeric_cols: list[str]) -> tuple[pd.D
     return df, nan_counts
 
 
-def reconcile(data: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
+def reconcile(
+    data: dict[str, pd.DataFrame],
+    on_progress: Optional[Callable[[str, int, int], None]] = None,
+) -> dict[str, pd.DataFrame]:
     """
     Entry point harmonisasi skema untuk dual-source OLTP data (BR & ID).
     Menerima output dari extract_oltp_data() dan mengembalikan dictionary dengan skema yang kompatibel.
@@ -101,6 +105,8 @@ def reconcile(data: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
             if cnt > 0:
                 logger.info(f"[RECONCILE] orders: {len(df_orders):,} baris, {cnt:,} NaT baru di kolom `{c}`")
         logger.info(f"[RECONCILE] orders: {len(df_orders):,} baris berhasil diharmonisasi.")
+        if on_progress:
+            on_progress("orders", 1, 6)
 
     # 2. order_items: harmonisasi price & freight_value
     if "order_items" in data:
@@ -119,6 +125,8 @@ def reconcile(data: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
             if cnt > 0:
                 logger.info(f"[RECONCILE] order_items: {len(df_items):,} baris, {cnt:,} NaN baru di kolom `{c}`")
         logger.info(f"[RECONCILE] order_items: {len(df_items):,} baris berhasil diharmonisasi.")
+        if on_progress:
+            on_progress("order_items", 2, 6)
 
     # 3. order_payments: harmonisasi payment_value
     if "order_payments" in data:
@@ -131,6 +139,8 @@ def reconcile(data: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
             if cnt > 0:
                 logger.info(f"[RECONCILE] order_payments: {len(df_pay):,} baris, {cnt:,} NaN baru di kolom `{c}`")
         logger.info(f"[RECONCILE] order_payments: {len(df_pay):,} baris berhasil diharmonisasi.")
+        if on_progress:
+            on_progress("order_payments", 3, 6)
 
     # 4. customers: verifikasi customer_state
     if "customers" in data:
@@ -142,6 +152,8 @@ def reconcile(data: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
             )
         reconciled_data["customers"] = df_cust
         logger.info(f"[RECONCILE] customers: {len(df_cust):,} baris diproses.")
+        if on_progress:
+            on_progress("customers", 4, 6)
 
     # 5. products: penanganan product_category_name_original & nullable integer length
     if "products" in data:
@@ -162,11 +174,16 @@ def reconcile(data: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
 
         reconciled_data["products"] = df_prod
         logger.info(f"[RECONCILE] products: {len(df_prod):,} baris berhasil diharmonisasi.")
+        if on_progress:
+            on_progress("products", 5, 6)
 
     # 6. sellers & tabel lainnya: teruskan secara langsung
     for tbl, df in data.items():
         if tbl not in reconciled_data:
             reconciled_data[tbl] = df.copy()
             logger.info(f"[RECONCILE] {tbl}: {len(df):,} baris diteruskan tanpa transformasi khusus.")
+
+    if on_progress:
+        on_progress("sellers", 6, 6)
 
     return reconciled_data

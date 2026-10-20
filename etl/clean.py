@@ -11,8 +11,9 @@ Semua baris yang ditolak TIDAK didrop diam-diam, melainkan disimpan ke daftar re
 
 import json
 import logging
-import pandas as pd
 from datetime import datetime
+from typing import Callable, Optional
+import pandas as pd
 
 from etl.config import VALID_ORDER_STATUSES, VALID_PAYMENT_TYPES
 
@@ -374,7 +375,10 @@ def clean_domain_validation_and_shift(df_orders: pd.DataFrame, df_payments: pd.D
 # ============================================================
 # ORKESTRASI PIPELINE CLEANSING
 # ============================================================
-def clean_all_data(data: dict[str, pd.DataFrame]) -> tuple[dict[str, pd.DataFrame], list[dict], dict]:
+def clean_all_data(
+    data: dict[str, pd.DataFrame],
+    on_progress: Optional[Callable[[str, int, int], None]] = None,
+) -> tuple[dict[str, pd.DataFrame], list[dict], dict]:
     """
     Menjalankan seluruh teknik cleansing secara berurutan:
     1. Null handling
@@ -397,18 +401,26 @@ def clean_all_data(data: dict[str, pd.DataFrame]) -> tuple[dict[str, pd.DataFram
     # 1. Null handling
     df_products, df_orders, rej_null = clean_null_handling(data["products"], data["orders"])
     all_rejections.extend(rej_null)
+    if on_progress:
+        on_progress("null_handling", 1, 6)
 
     # 2. Deduplikasi
     df_customers, df_sellers, df_items, rej_dedup = clean_deduplication(data["customers"], data["sellers"], data["order_items"])
     all_rejections.extend(rej_dedup)
+    if on_progress:
+        on_progress("deduplication", 2, 6)
 
     # 3. Bad business logic
     df_orders, df_items, rej_logic = clean_bad_business_logic(df_orders, df_items)
     all_rejections.extend(rej_logic)
+    if on_progress:
+        on_progress("business_logic", 3, 6)
 
     # 4. Validasi domain & shift
     df_orders, df_payments, rej_domain = clean_domain_validation_and_shift(df_orders, data["order_payments"])
     all_rejections.extend(rej_domain)
+    if on_progress:
+        on_progress("domain_validation", 4, 6)
 
     # Harmonisasi relasi: pastikan item & payments hanya merujuk ke orders yang lolos validasi
     valid_order_ids = set(df_orders["order_id"])
@@ -436,6 +448,9 @@ def clean_all_data(data: dict[str, pd.DataFrame]) -> tuple[dict[str, pd.DataFram
         )
         df_payments = df_payments[df_payments["order_id"].isin(valid_order_ids)].copy()
 
+    if on_progress:
+        on_progress("relational_integrity", 5, 6)
+
     clean_data = {
         "customers": df_customers,
         "products": df_products,
@@ -449,6 +464,9 @@ def clean_all_data(data: dict[str, pd.DataFrame]) -> tuple[dict[str, pd.DataFram
     for k, v in clean_data.items():
         audit[f"{k}_rows_after"] = len(v)
     audit["total_rejected_records"] = len(all_rejections)
+
+    if on_progress:
+        on_progress("clean_ready", 6, 6)
 
     return clean_data, all_rejections, audit
 

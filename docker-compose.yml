@@ -1,0 +1,30 @@
+services:
+  # 1. OLTP Brazil (Port 3306)
+  mysql-oltp-br:
+    image: mysql:8.4
+    container_name: mysql-oltp-br
+    restart: unless-stopped
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+    ports:
+      - "3306:3306"
+
+  # 2. OLTP Indonesia (Port 3307)
+  mysql-oltp-id:
+    image: mysql:8.4
+    container_name: mysql-oltp-id
+    restart: unless-stopped
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+    ports:
+      - "3307:3306"
+
+  # 3. Server DWH & Staging (Port 3308)
+  mysql-dwh:
+    image: mysql:8.4
+    container_name: mysql-dwh
+    restart: unless-stopped
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+    ports:
+      - "3308:3306"

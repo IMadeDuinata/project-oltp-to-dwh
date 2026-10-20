@@ -137,10 +137,6 @@ def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline
     """Fungsi orkestrasi end-to-end ETL."""
     run_id = f"RUN_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
     start_time = datetime.now()
-    logger.info("=" * 60)
-    logger.info(f"🚀 MEMULAI ETL PIPELINE: {pipeline_name} (Run ID: {run_id})")
-    logger.info(f"   Mode: {'Incremental' if incremental else 'Full Load'}")
-    logger.info("=" * 60)
 
     rows_in = 0
     rows_clean = 0
@@ -154,10 +150,25 @@ def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline
             mode="Incremental" if incremental else "Full",
             pipeline_name=pipeline_name,
         ) as progress:
+            logger.info(f"Memulai ETL pipeline '{pipeline_name}' (Run ID: {run_id}, Mode: {'Incremental' if incremental else 'Full Load'})")
+
             # 1. EXTRACT KE STAGING & BACA STAGING
             logger.info("\n[Step 1/4] 📥 EXTRACT OLTP KE STAGING AREA (dwh_staging)...")
-            progress.start_step("extract", message="Memuat data dari OLTP ke staging...")
-            load_oltp_to_staging(incremental=incremental, pipeline_name=pipeline_name)
+            progress.start_step("extract", message="Memuat data dari OLTP ke staging...", total=6)
+
+            def on_extract_progress(table_name: str, current: int, total: int):
+                progress.update_step(
+                    "extract",
+                    message=f"Extract: {table_name} [green]{current}/{total}[/green]...",
+                    completed=current,
+                    total=total,
+                )
+
+            load_oltp_to_staging(
+                incremental=incremental,
+                pipeline_name=pipeline_name,
+                on_progress=on_extract_progress,
+            )
             raw_data = extract_from_staging()
             rows_in = sum(len(df) for df in raw_data.values())
             br_rows = sum(len(df[df["source_country"] == "BR"]) for df in raw_data.values() if "source_country" in df.columns)
@@ -170,8 +181,17 @@ def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline
             )
 
             # 1.5 RECONCILE (SCHEMA HARMONIZATION BR <-> ID)
-            progress.start_step("reconcile", message="Menyelaraskan skema BR & ID...")
-            raw_data = reconcile(raw_data)
+            progress.start_step("reconcile", message="Menyelaraskan skema BR & ID...", total=6)
+
+            def on_reconcile_progress(tbl_name: str, current: int, total: int):
+                progress.update_step(
+                    "reconcile",
+                    message=f"Harmonisasi: `{tbl_name}` [green]{current}/{total}[/green]...",
+                    completed=current,
+                    total=total,
+                )
+
+            raw_data = reconcile(raw_data, on_progress=on_reconcile_progress)
             rows_reconciled = sum(len(df) for df in raw_data.values())
             progress.complete_step(
                 "reconcile",
@@ -181,8 +201,17 @@ def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline
 
             # 2. CLEAN
             logger.info("\n[Step 2/4] 🧹 CLEANSING & VALIDASI DATA...")
-            progress.start_step("clean", message="Cleansing dan validasi data...")
-            clean_data, rejections, audit = clean_all_data(raw_data)
+            progress.start_step("clean", message="Cleansing dan validasi data...", total=6)
+
+            def on_clean_progress(tbl_name: str, current: int, total: int):
+                progress.update_step(
+                    "clean",
+                    message=f"Cleansing: `{tbl_name}` [green]{current}/{total}[/green]...",
+                    completed=current,
+                    total=total,
+                )
+
+            clean_data, rejections, audit = clean_all_data(raw_data, on_progress=on_clean_progress)
             rows_clean = sum(len(df) for df in clean_data.values())
             rows_rejected = len(rejections)
             logger.info(f"Total baris bersih: {rows_clean:,} | Ditolak: {rows_rejected:,}")
@@ -276,6 +305,15 @@ def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline
             # 5. LOAD FACTS (TRANSACTIONAL)
             logger.info("\n[Step 4c/4] 📤 LOAD TABEL FAKTA (TRANSAKSIONAL)...")
             progress.start_step("load_facts", message="Memuat tabel fakta (transaksional)...", total=3)
+
+            def on_facts_progress(fact_name: str, current: int, total: int):
+                progress.update_step(
+                    "load_facts",
+                    message=f"Load: `{fact_name}` [green]{current}/{total}[/green]...",
+                    completed=current,
+                    total=total,
+                )
+
             order_ids_batch = clean_data["orders"]["order_id"].tolist() if incremental else None
             rows_loaded = load_facts_transactional(
                 fact_order_items=fact_items,
@@ -283,6 +321,7 @@ def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline
                 fact_order_payments=fact_payments,
                 incremental=incremental,
                 order_ids=order_ids_batch,
+                on_progress=on_facts_progress,
             )
             progress.complete_step(
                 "load_facts",

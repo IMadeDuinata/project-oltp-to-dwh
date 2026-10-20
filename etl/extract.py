@@ -10,6 +10,7 @@ import os
 import sys
 import logging
 from datetime import datetime
+from typing import Callable, Optional
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -64,6 +65,7 @@ def extract_from_source(
     source_country: str,
     incremental: bool = False,
     watermark: datetime | None = None,
+    on_progress: Optional[Callable[[str, int, int], None]] = None,
 ) -> dict[str, pd.DataFrame]:
     """
     Ekstrak data dari satu source database OLTP dan beri tag kolom `source_country`.
@@ -75,11 +77,13 @@ def extract_from_source(
 
     # Tabel Master selalu diekstrak penuh
     master_tables = ["customers", "products", "sellers"]
-    for tbl in master_tables:
+    for idx, tbl in enumerate(master_tables, start=1):
         logger.info(f"{prefix} Extract tabel `{tbl}`...")
         df = pd.read_sql(f"SELECT * FROM `{tbl}`", engine)
         data[tbl] = df
         logger.info(f"{prefix}   -> {len(df):,} baris diekstrak dari `{tbl}`")
+        if on_progress:
+            on_progress(f"{prefix} {tbl}", idx, 6)
 
     # Ekstrak orders, items, payments
     if incremental and watermark:
@@ -100,12 +104,28 @@ def extract_from_source(
     else:
         logger.info(f"{prefix} Extract full load untuk orders, items, dan payments...")
         data["orders"] = pd.read_sql("SELECT * FROM orders", engine)
+        if on_progress:
+            on_progress(f"{prefix} orders", 4, 6)
+
         data["order_items"] = pd.read_sql("SELECT * FROM order_items", engine)
+        if on_progress:
+            on_progress(f"{prefix} order_items", 5, 6)
+
         data["order_payments"] = pd.read_sql("SELECT * FROM order_payments", engine)
+        if on_progress:
+            on_progress(f"{prefix} order_payments", 6, 6)
 
     logger.info(f"{prefix}   -> {len(data['orders']):,} baris dari `orders`")
+    if incremental and watermark and on_progress:
+        on_progress(f"{prefix} orders", 4, 6)
+
     logger.info(f"{prefix}   -> {len(data['order_items']):,} baris dari `order_items`")
+    if incremental and watermark and on_progress:
+        on_progress(f"{prefix} order_items", 5, 6)
+
     logger.info(f"{prefix}   -> {len(data['order_payments']):,} baris dari `order_payments`")
+    if incremental and watermark and on_progress:
+        on_progress(f"{prefix} order_payments", 6, 6)
 
     # Tagging source_country pada setiap tabel
     for tbl in ["customers", "products", "sellers", "orders", "order_items", "order_payments"]:
@@ -117,7 +137,11 @@ def extract_from_source(
     return data
 
 
-def extract_oltp_data(incremental: bool = False, pipeline_name="olist_pipeline") -> dict[str, pd.DataFrame]:
+def extract_oltp_data(
+    incremental: bool = False,
+    pipeline_name="olist_pipeline",
+    on_progress: Optional[Callable[[str, int, int], None]] = None,
+) -> dict[str, pd.DataFrame]:
     """
     Orchestrator dual-source extract:
     - Mengekstrak data dari Brazil (BR) menggunakan engine BR (incremental didukung).
@@ -134,6 +158,7 @@ def extract_oltp_data(incremental: bool = False, pipeline_name="olist_pipeline")
         source_country="BR",
         incremental=incremental,
         watermark=watermark_br,
+        on_progress=on_progress,
     )
 
     # 2. Source Indonesia
@@ -144,6 +169,7 @@ def extract_oltp_data(incremental: bool = False, pipeline_name="olist_pipeline")
         source_country="ID",
         incremental=False,
         watermark=None,
+        on_progress=on_progress,
     )
 
     # 3. Penggabungan per tabel
@@ -175,7 +201,8 @@ def extract_oltp_data(incremental: bool = False, pipeline_name="olist_pipeline")
 def load_oltp_to_staging(
     raw_data: dict[str, pd.DataFrame] | None = None,
     incremental: bool = False,
-    pipeline_name: str = "olist_pipeline"
+    pipeline_name: str = "olist_pipeline",
+    on_progress: Optional[Callable[[str, int, int], None]] = None,
 ) -> dict[str, int]:
     """
     Memuat data hasil extract OLTP ke tabel staging fisik per entitas di database dwh_staging.
@@ -188,7 +215,11 @@ def load_oltp_to_staging(
     - stg_order_payments
     """
     if raw_data is None:
-        raw_data = extract_oltp_data(incremental=incremental, pipeline_name=pipeline_name)
+        raw_data = extract_oltp_data(
+            incremental=incremental,
+            pipeline_name=pipeline_name,
+            on_progress=on_progress,
+        )
 
     stg_engine = get_staging_engine()
     staging_map = {

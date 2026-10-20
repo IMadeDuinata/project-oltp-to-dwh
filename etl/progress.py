@@ -168,13 +168,13 @@ class ETLProgress:
         self.run_log_file = f"reports/etl_{self.run_id}.log"
         self.global_log_file = "log_etl.txt"
 
-        # Inisialisasi Rich Progress dengan kolom teks terstandar (tanpa emoji)
+        # Inisialisasi Rich Progress dengan kolom teks terstandar (tanpa emoji, spacing renggang)
         self.progress = Progress(
-            TextColumn("[cyan]{task.fields[label]:<13}[/cyan]", table_column=Column(no_wrap=True)),
+            TextColumn("  [cyan]{task.fields[label]:<14}[/cyan]  ", table_column=Column(no_wrap=True)),
             TextStatusColumn(),
-            TextColumn("{task.fields[message]}", table_column=Column(ratio=1)),
-            BarColumn(bar_width=8, complete_style="green", finished_style="bold green", table_column=Column(no_wrap=True)),
-            MofNCompleteColumn(table_column=Column(min_width=5, no_wrap=True, justify="right")),
+            TextColumn("  {task.fields[message]}", table_column=Column(ratio=1)),
+            BarColumn(bar_width=10, complete_style="green", finished_style="bold green", table_column=Column(no_wrap=True)),
+            MofNCompleteColumn(table_column=Column(min_width=7, no_wrap=True, justify="right")),
             StepTimeElapsedColumn(),
             console=self.console,
         )
@@ -233,11 +233,17 @@ class ETLProgress:
 
     def _render_view(self) -> Table:
         """Menghasilkan renderable layout vertikal (Progress Panel di atas, Live Logs 20 baris di bawah)."""
-        # Panel Atas: Progress Steps
+        # Panel Atas: Progress Steps (elemen direnggangkan dengan padding dan spacing lapang)
+        title_capsule = (
+            f"   ETL Pipeline: [bold cyan]{self.pipeline_name}[/bold cyan]     │     "
+            f"Run ID: [bold yellow]{self.run_id}[/bold yellow]     │     "
+            f"Mode: [bold green]{self.mode}[/bold green]   "
+        )
         p_top = Panel(
             self.progress,
-            title=f"ETL Pipeline: {self.pipeline_name} | Run ID: {self.run_id} | Mode: {self.mode}",
+            title=title_capsule,
             border_style="blue",
+            padding=(1, 2),
         )
 
         # Panel Bawah: Live Logs setinggi max_logs (20 baris stabil)
@@ -252,8 +258,9 @@ class ETLProgress:
         log_text = Text("\n").join(log_lines)
         p_bottom = Panel(
             log_text,
-            title=f"Live Execution Logs ({self.max_logs} Baris Terbaru)",
+            title=f"   Live Execution Logs   ",
             border_style="cyan",
+            padding=(0, 1),
         )
 
         # Susun secara vertikal menggunakan Table.grid

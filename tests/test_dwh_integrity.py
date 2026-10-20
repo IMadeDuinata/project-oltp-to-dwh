@@ -8,9 +8,10 @@ Menguji:
 5. Integritas struktur SCD Type 2 pada dim_customer
 """
 
+import json
 import pytest
 from sqlalchemy import text
-from etl.config import get_oltp_engine, get_dwh_engine
+from etl.config import get_oltp_engine, get_oltp_br_engine, get_oltp_id_engine, get_dwh_engine
 
 
 @pytest.fixture(scope="module")
@@ -21,6 +22,16 @@ def dwh_engine():
 @pytest.fixture(scope="module")
 def oltp_engine():
     return get_oltp_engine()
+
+
+@pytest.fixture(scope="module")
+def oltp_br_engine():
+    return get_oltp_br_engine()
+
+
+@pytest.fixture(scope="module")
+def oltp_id_engine():
+    return get_oltp_id_engine()
 
 
 def test_unknown_records_in_dimensions(dwh_engine):
@@ -85,38 +96,55 @@ def test_no_orphan_foreign_keys_in_facts(dwh_engine):
             assert orphan_count == 0, f"Ditemukan {orphan_count} orphan FK pada {f_tbl}.{f_key} -> {d_tbl}.{d_key}"
 
 
-def test_sum_measure_consistency(oltp_engine, dwh_engine):
+def test_sum_measure_consistency(oltp_br_engine, oltp_id_engine, dwh_engine):
     """
-    Memverifikasi konsistensi measure keuangan:
-    SUM(price) di DWH fact_order_items harus sama persis dengan
-    SUM(price) di OLTP order_items setelah dikurangi baris item yang direject.
+    Memverifikasi konsistensi measure keuangan multi-source:
+    SUM(price) di DWH fact_order_items per country harus sama persis dengan
+    SUM(price) di masing-masing OLTP (BR & ID) setelah memperhitungkan baris item yang direject.
     """
-    with dwh_engine.connect() as dwh_conn, oltp_engine.connect() as oltp_conn:
-        # Sum price DWH
-        dwh_sum = dwh_conn.execute(text("SELECT ROUND(SUM(price), 2) FROM fact_order_items")).scalar()
-        
+    with dwh_engine.connect() as dwh_conn:
         # Ambil run_id sukses terakhir dari etl_log
         latest_run_id = dwh_conn.execute(
             text("SELECT run_id FROM etl_log WHERE status = 'SUCCESS' ORDER BY log_id DESC LIMIT 1")
         ).scalar()
         assert latest_run_id is not None, "Belum ada run ETL yang berstatus SUCCESS di etl_log"
 
-        # Cari sum price item yang ditolak di rejected_rows pada run_id terakhir
-        rej_prices = dwh_conn.execute(text("""
-            SELECT JSON_UNQUOTE(JSON_EXTRACT(raw_record_json, '$.price')) AS price_val
-            FROM rejected_rows
-            WHERE table_source = 'order_items' AND run_id = :rid
-        """), {"rid": latest_run_id}).fetchall()
-        
-        sum_rejected_price = sum(float(r[0]) for r in rej_prices if r[0] is not None and float(r[0]) > 0)
-        
-        # Sum price OLTP
-        oltp_sum = oltp_conn.execute(text("SELECT ROUND(SUM(price), 2) FROM order_items")).scalar()
+        sources = [
+            ("BR", oltp_br_engine, "order_items", "price"),
+            ("ID", oltp_id_engine, "order_items", "price"),
+        ]
 
-        # Ekspektasi: dwh_sum + sum_rejected_price == oltp_sum
-        diff = abs((float(dwh_sum) + sum_rejected_price) - float(oltp_sum))
-        print(f"\nMeasure Audit: DWH Sum={dwh_sum}, Rej Sum={sum_rejected_price}, OLTP Sum={oltp_sum}, Diff={diff}")
-        assert diff < 0.01, f"Selisih measure melebihi toleransi: diff={diff}"
+        for country, engine, tbl_name, col_name in sources:
+            dwh_sum = dwh_conn.execute(
+                text("SELECT COALESCE(ROUND(SUM(price), 2), 0.00) FROM fact_order_items WHERE source_country = :sc"),
+                {"sc": country}
+            ).scalar()
+
+            rej_records = dwh_conn.execute(text("""
+                SELECT raw_record_json
+                FROM rejected_rows
+                WHERE table_source = :tbl AND run_id = :rid
+            """), {"tbl": tbl_name, "rid": latest_run_id}).fetchall()
+
+            sum_rejected = 0.0
+            for r in rej_records:
+                rec = json.loads(r[0])
+                if rec.get("source_country") == country:
+                    val = rec.get("price")
+                    if val is not None:
+                        try:
+                            sum_rejected += float(val)
+                        except (ValueError, TypeError):
+                            pass
+
+            with engine.connect() as oltp_conn:
+                oltp_sum = oltp_conn.execute(
+                    text(f"SELECT COALESCE(ROUND(SUM(CAST({col_name} AS DECIMAL(20,2))), 2), 0.00) FROM {tbl_name}")
+                ).scalar()
+
+            diff = abs((float(dwh_sum) + sum_rejected) - float(oltp_sum))
+            print(f"\nMeasure Audit [{country}]: DWH Sum={dwh_sum}, Rej Sum={sum_rejected:.2f}, OLTP Sum={oltp_sum}, Diff={diff:.4f}")
+            assert diff < 0.01, f"Selisih measure melebihi toleransi pada source {country}: diff={diff}"
 
 
 def test_dim_customer_scd2_structure(dwh_engine):

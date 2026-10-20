@@ -36,7 +36,12 @@ logger = logging.getLogger("run_etl")
 
 # Import modul ETL internal
 from etl.config import REPORTS_DIR
-from etl.extract import extract_oltp_data, update_watermark
+from etl.extract import (
+    extract_oltp_data,
+    update_watermark,
+    load_oltp_to_staging,
+    extract_from_staging,
+)
 from etl.reconcile import reconcile
 from etl.clean import clean_all_data
 from etl.transform import (
@@ -149,17 +154,18 @@ def run_pipeline(incremental: bool = False, pipeline_name: str = "olist_pipeline
             mode="Incremental" if incremental else "Full",
             pipeline_name=pipeline_name,
         ) as progress:
-            # 1. EXTRACT
-            logger.info("\n[Step 1/4] 📥 EXTRACT DARI OLTP...")
-            progress.start_step("extract", message="Mengekstrak data dari database OLTP...")
-            raw_data = extract_oltp_data(incremental=incremental, pipeline_name=pipeline_name)
+            # 1. EXTRACT KE STAGING & BACA STAGING
+            logger.info("\n[Step 1/4] 📥 EXTRACT OLTP KE STAGING AREA (dwh_staging)...")
+            progress.start_step("extract", message="Memuat data dari OLTP ke staging...")
+            load_oltp_to_staging(incremental=incremental, pipeline_name=pipeline_name)
+            raw_data = extract_from_staging()
             rows_in = sum(len(df) for df in raw_data.values())
             br_rows = sum(len(df[df["source_country"] == "BR"]) for df in raw_data.values() if "source_country" in df.columns)
             id_rows = sum(len(df[df["source_country"] == "ID"]) for df in raw_data.values() if "source_country" in df.columns)
-            logger.info(f"Total baris diekstrak: {rows_in:,}")
+            logger.info(f"Total baris diekstrak dari staging: {rows_in:,}")
             progress.complete_step(
                 "extract",
-                message=f"BR: [green]{br_rows:,}[/green] | ID: [green]{id_rows:,}[/green] | Combined: [green]{rows_in:,}[/green]",
+                message=f"Staging BR: [green]{br_rows:,}[/green] | ID: [green]{id_rows:,}[/green] | Combined: [green]{rows_in:,}[/green]",
                 rows=rows_in,
             )
 

@@ -279,31 +279,31 @@ def clean_bad_business_logic(df_orders: pd.DataFrame, df_items: pd.DataFrame) ->
 
     # Validasi Order Items
     df_it = df_items.copy()
-    mask_price_invalid = df_it["price"] <= 0
+    mask_price_invalid = (df_it["price"] <= 0) | (df_it["price"] > 99999999.99)
     rej_price = df_it[mask_price_invalid]
     rejections.extend(
         record_rejections(
             rej_price,
             table_source="order_items",
             column_name="price",
-            reason="price must be greater than zero"
+            reason="price must be greater than zero and within valid range (<= 99999999.99)"
         )
     )
 
-    mask_freight_invalid = df_it["freight_value"] < 0
+    mask_freight_invalid = (df_it["freight_value"] < 0) | (df_it["freight_value"] > 99999999.99)
     rej_freight = df_it[mask_freight_invalid]
     rejections.extend(
         record_rejections(
             rej_freight,
             table_source="order_items",
             column_name="freight_value",
-            reason="freight value cannot be negative"
+            reason="freight value cannot be negative or exceed column limits"
         )
     )
 
     mask_all_bad_it = mask_price_invalid | mask_freight_invalid
     df_it_clean = df_it[~mask_all_bad_it].copy()
-    logger.info(f"  -> Ditolak order_items karena price <= 0 atau freight < 0: {mask_all_bad_it.sum():,} baris")
+    logger.info(f"  -> Ditolak order_items karena price invalid/outlier atau freight < 0: {mask_all_bad_it.sum():,} baris")
 
     return df_ord_clean, df_it_clean, rejections
 

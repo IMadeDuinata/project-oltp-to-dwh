@@ -1,140 +1,183 @@
 """
 dashboard/utils.py
-Shared utilities: DB engine, color palette, dan query helpers.
-Koneksi identik dengan etl/config.py — tanpa hardcode credentials.
+Database connection, query builders, and global sidebar filter components.
+Menggunakan get_dwh_engine() dari etl/config.py untuk koneksi MySQL port 3308.
 """
 
-import os
+import sys
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 import streamlit as st
-from dotenv import load_dotenv
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import URL
 
-# ── Environment ──────────────────────────────────────────────────────────────
-BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")
+# Setup import path to root project
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
-DB_HOST     = os.getenv("DB_HOST", "127.0.0.1")
-DB_PORT     = int(os.getenv("DB_PORT", "3306"))
-DB_USER     = os.getenv("DB_USER", "root")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "")
-DB_NAME_DWH = os.getenv("DB_NAME_DWH", "dwh_olist")
+from etl.config import get_dwh_engine
 
-# ── Engine ────────────────────────────────────────────────────────────────────
+
+# ── Database Engine ───────────────────────────────────────────────────────────
 @st.cache_resource
 def get_engine():
-    url = URL.create(
-        drivername="mysql+pymysql",
-        username=DB_USER,
-        password=DB_PASSWORD,
-        host=DB_HOST,
-        port=DB_PORT,
-        database=DB_NAME_DWH,
-        query={"charset": "utf8mb4"},
-    )
-    return create_engine(url, pool_pre_ping=True)
+    """Mengambil connection pool SQLAlchemy engine untuk DWH (port 3308)."""
+    return get_dwh_engine()
 
 
-# ── Color Palette (dipakai di semua halaman) ──────────────────────────────────
-PALETTE        = ["#2E86AB", "#A23B72", "#F18F01", "#C73E1D", "#3B1F2B",
-                  "#44BBA4", "#E94F37", "#393E41", "#F5A623", "#7B2D8B"]
-PRIMARY_COLOR  = "#2E86AB"
-SUCCESS_COLOR  = "#44BBA4"
-WARNING_COLOR  = "#F18F01"
-DANGER_COLOR   = "#C73E1D"
-
-PLOTLY_TEMPLATE = "plotly_white"
-
-
-# ── Query Helpers ─────────────────────────────────────────────────────────────
+# ── Metadata & Filter Option Queries ──────────────────────────────────────────
 @st.cache_data(ttl=300)
-def get_date_options() -> dict:
-    """Kembalikan dict {year: [months]} untuk sidebar filter."""
+def get_available_filter_options() -> Dict:
+    """Mengambil list tahun, bulan, dan negara yang valid dari DWH."""
     engine = get_engine()
     with engine.connect() as conn:
-        df = pd.read_sql(
-            "SELECT DISTINCT year, month FROM dim_date "
-            "WHERE year > 1970 ORDER BY year, month",
+        years_df = pd.read_sql(
+            """
+            SELECT DISTINCT dd.year 
+            FROM fact_order_items foi
+            JOIN dim_date dd ON foi.purchase_date_sk = dd.date_sk
+            WHERE dd.year BETWEEN 2016 AND 2025
+            ORDER BY dd.year
+            """,
             conn,
         )
-    years  = sorted(df["year"].unique().tolist())
-    months = sorted(df["month"].unique().tolist())
-    return {"years": years, "months": months}
+        years = years_df["year"].dropna().astype(int).tolist()
 
-
-@st.cache_data(ttl=300)
-def get_state_options() -> list:
-    """Semua customer_state yang ada di dim_customer (non-null)."""
-    engine = get_engine()
-    with engine.connect() as conn:
-        df = pd.read_sql(
-            "SELECT DISTINCT customer_state FROM dim_customer "
-            "WHERE customer_state IS NOT NULL AND customer_state != 'NA' "
-            "ORDER BY customer_state",
+        countries_df = pd.read_sql(
+            "SELECT DISTINCT source_country FROM fact_order_items WHERE source_country IS NOT NULL ORDER BY source_country",
             conn,
         )
-    return df["customer_state"].str.upper().tolist()
+        countries = countries_df["source_country"].dropna().tolist()
+
+    return {
+        "years": years if years else [2016, 2017, 2018],
+        "months": list(range(1, 13)),
+        "countries": countries if countries else ["BR", "ID"],
+    }
 
 
-def build_date_filter(year_col: str, month_col: str,
-                      years: list, months: list) -> str:
-    """Bangun klausa WHERE untuk filter tahun dan bulan."""
-    parts = []
+# ── SQL Filter Clauses Builder ────────────────────────────────────────────────
+def build_where_clause(
+    years: List[int],
+    months: List[int],
+    country: str,
+    date_alias: str = "dd",
+    country_alias: str = "foi",
+) -> str:
+    """
+    Membangun klausa WHERE SQL yang konsisten untuk tahun, bulan, dan negara asal.
+    """
+    conditions = []
+
+    # Filter Tahun
     if years:
-        ys = ", ".join(str(y) for y in years)
-        parts.append(f"{year_col} IN ({ys})")
-    if months:
-        ms = ", ".join(str(m) for m in months)
-        parts.append(f"{month_col} IN ({ms})")
-    return " AND ".join(parts) if parts else "1=1"
+        years_str = ", ".join(map(str, years))
+        conditions.append(f"{date_alias}.year IN ({years_str})")
+    else:
+        conditions.append(f"{date_alias}.year BETWEEN 2016 AND 2025")
+
+    # Filter Bulan
+    if months and len(months) < 12:
+        months_str = ", ".join(map(str, months))
+        conditions.append(f"{date_alias}.month IN ({months_str})")
+
+    # Filter Negara
+    if country and country != "ALL":
+        conditions.append(f"{country_alias}.source_country = '{country}'")
+
+    return " AND ".join(conditions) if conditions else "1=1"
 
 
-def build_state_filter(state_col: str, states: list) -> str:
-    """Bangun klausa WHERE untuk filter state."""
-    if not states:
-        return "1=1"
-    quoted = ", ".join(f"'{s.lower()}'" for s in states)
-    return f"LOWER({state_col}) IN ({quoted})"
-
-
-def empty_chart_message():
-    st.info("⚠️ Tidak ada data untuk filter yang dipilih.", icon="🔍")
-
-
-# ── Sidebar Filter Builder ────────────────────────────────────────────────────
-def render_sidebar_filters(page_key: str) -> dict:
+# ── Shared Sidebar Filters ───────────────────────────────────────────────────
+def render_global_sidebar(page_key: str = "main") -> Dict:
     """
-    Render sidebar filter: year (multiselect), month (multiselect),
-    customer_state (multiselect).
-    Kembalikan dict dengan keys: years, months, states.
+    Merender sidebar filter global standar yang konsisten di semua halaman.
+    Mengembalikan dict berisi parameter filter yang dipilih pengguna.
     """
-    opts     = get_date_options()
-    all_states = get_state_options()
+    st.sidebar.markdown("### 🎛️ Global Filters")
+    st.sidebar.caption("Filter berlaku untuk seluruh visualisasi & metric.")
 
-    st.sidebar.header("🔧 Filter")
-    years = st.sidebar.multiselect(
-        "Tahun",
-        options=opts["years"],
-        default=opts["years"],
-        key=f"{page_key}_years",
+    options = get_available_filter_options()
+
+    # 1. Source Country Selector
+    country_labels = {
+        "ALL": "🌐 All Countries (BR + ID)",
+        "BR": "🇧🇷 Brazil (BR)",
+        "ID": "🇮🇩 Indonesia (ID)",
+    }
+    
+    country_choice = st.sidebar.radio(
+        "Source Country",
+        options=["ALL", "BR", "ID"],
+        format_func=lambda x: country_labels.get(x, x),
+        key=f"filter_country_{page_key}",
+        help="Pilih cakupan data: Gabungan (Dual-source), Brazil saja, atau Indonesia saja.",
     )
-    months = st.sidebar.multiselect(
-        "Bulan",
-        options=opts["months"],
-        default=opts["months"],
-        format_func=lambda m: [
-            "Jan","Feb","Mar","Apr","Mei","Jun",
-            "Jul","Agu","Sep","Okt","Nov","Des"
-        ][m - 1],
-        key=f"{page_key}_months",
+
+    # 2. Year Multiselect
+    available_years = options["years"]
+    selected_years = st.sidebar.multiselect(
+        "Tahun Transaksi",
+        options=available_years,
+        default=available_years,
+        key=f"filter_years_{page_key}",
+        help="Pilih satu atau beberapa tahun transaksi.",
     )
-    states = st.sidebar.multiselect(
-        "State Customer",
-        options=all_states,
-        default=all_states,
-        key=f"{page_key}_states",
+
+    # 3. Month Filter
+    month_names = {
+        1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr", 5: "Mei", 6: "Jun",
+        7: "Jul", 8: "Agu", 9: "Sep", 10: "Okt", 11: "Nov", 12: "Des"
+    }
+    selected_months = st.sidebar.multiselect(
+        "Bulan Transaksi",
+        options=options["months"],
+        default=options["months"],
+        format_func=lambda m: f"{m:02d} - {month_names.get(m, '')}",
+        key=f"filter_months_{page_key}",
     )
-    return {"years": years, "months": months, "states": states}
+
+    st.sidebar.markdown("---")
+    st.sidebar.markdown(
+        """
+        <div style="font-size: 0.78rem; color: #64748B;">
+            <b>Dual-Source DWH Architecture</b><br>
+            • Database: <code>dwh_olist</code> (MySQL:3308)<br>
+            • BR: Olist Brazil (Real R$)<br>
+            • ID: Mitra Indo (Harmonized)
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    return {
+        "country": country_choice,
+        "years": selected_years if selected_years else available_years,
+        "months": selected_months if selected_months else options["months"],
+    }
+
+
+# ── Formatting Helpers ────────────────────────────────────────────────────────
+def format_currency(val: Optional[float], country: str = "ALL") -> str:
+    """Format angka menjadi representasi mata uang yang jelas."""
+    if val is None or pd.isna(val):
+        return "—"
+    if country == "ID":
+        # Jika ditampilkan dalam skala jutaan/satuan
+        return f"Rp {val:,.2f}"
+    return f"R$ {val:,.2f}"
+
+
+def format_number(val: Optional[float]) -> str:
+    """Format integer/float dengan pemisah ribuan koma."""
+    if val is None or pd.isna(val):
+        return "—"
+    return f"{int(val):,}"
+
+
+def format_percent(val: Optional[float]) -> str:
+    """Format persentase desimal."""
+    if val is None or pd.isna(val):
+        return "—"
+    return f"{val:.1f}%"

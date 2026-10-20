@@ -22,6 +22,7 @@ DB_USER = os.getenv("DB_USER", "root")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "secret")
 DB_NAME_OLTP = os.getenv("DB_NAME_OLTP", os.getenv("DB_NAME", "oltp_olist"))
 DB_NAME_DWH = os.getenv("DB_NAME_DWH", "dwh_olist")
+DB_NAME_STAGING = os.getenv("DB_NAME_STAGING", "dwh_staging")
 
 DB_PORT_OLTP_BR = int(os.getenv("DB_PORT_OLTP_BR", "3306"))
 DB_PORT_OLTP_ID = int(os.getenv("DB_PORT_OLTP_ID", "3307"))
@@ -59,6 +60,12 @@ def get_dwh_engine():
     return create_engine(
         URL.create("mysql+pymysql", username=DB_USER, password=DB_PASSWORD,
                    host=DB_HOST, port=DB_PORT_DWH, database=DB_NAME_DWH,
+                   query={"charset": "utf8mb4"}), pool_pre_ping=True)
+
+def get_staging_engine():
+    return create_engine(
+        URL.create("mysql+pymysql", username=DB_USER, password=DB_PASSWORD,
+                   host=DB_HOST, port=DB_PORT_DWH, database=DB_NAME_STAGING,
                    query={"charset": "utf8mb4"}), pool_pre_ping=True)
 
 # Validasi Domain Konstanta

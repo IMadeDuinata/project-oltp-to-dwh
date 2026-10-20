@@ -21,6 +21,7 @@ from etl.config import (
     get_oltp_br_engine,
     get_oltp_id_engine,
     get_dwh_engine,
+    get_staging_engine,
 )
 
 logger = logging.getLogger(__name__)
@@ -169,6 +170,91 @@ def extract_oltp_data(incremental: bool = False, pipeline_name="olist_pipeline")
         logger.info(f"[COMBINED] `{tbl}`: total {len(combined_df):,} baris ({len(df_br):,} BR + {len(df_id):,} ID)")
 
     return combined_data
+
+
+def load_oltp_to_staging(
+    raw_data: dict[str, pd.DataFrame] | None = None,
+    incremental: bool = False,
+    pipeline_name: str = "olist_pipeline"
+) -> dict[str, int]:
+    """
+    Memuat data hasil extract OLTP ke tabel staging fisik per entitas di database dwh_staging.
+    Tabel tujuan:
+    - stg_customers
+    - stg_products
+    - stg_sellers
+    - stg_orders
+    - stg_order_items
+    - stg_order_payments
+    """
+    if raw_data is None:
+        raw_data = extract_oltp_data(incremental=incremental, pipeline_name=pipeline_name)
+
+    stg_engine = get_staging_engine()
+    staging_map = {
+        "customers": "stg_customers",
+        "products": "stg_products",
+        "sellers": "stg_sellers",
+        "orders": "stg_orders",
+        "order_items": "stg_order_items",
+        "order_payments": "stg_order_payments",
+    }
+
+    counts = {}
+    with stg_engine.begin() as conn:
+        for entity, stg_table in staging_map.items():
+            if entity not in raw_data or raw_data[entity].empty:
+                continue
+
+            df = raw_data[entity].copy()
+            df["_source_country"] = df["source_country"]
+            df["_extracted_at"] = datetime.now()
+
+            # Buang kolom yang tidak ada di DDL stg_*
+            cols_to_drop = [c for c in ["source_country"] if c in df.columns]
+            df_stg = df.drop(columns=cols_to_drop)
+
+            # Truncate jika full load
+            if not incremental:
+                conn.execute(text(f"TRUNCATE TABLE `{stg_table}`"))
+
+            df_stg.to_sql(stg_table, conn, if_exists="append", index=False, chunksize=2000)
+            counts[stg_table] = len(df_stg)
+            logger.info(f"  -> {len(df_stg):,} baris berhasil dimuat ke `{stg_table}`")
+
+    return counts
+
+
+def extract_from_staging() -> dict[str, pd.DataFrame]:
+    """
+    Mengekstrak data mentah dari tabel staging fisik dwh_staging untuk diproses oleh pipeline ETL.
+    """
+    stg_engine = get_staging_engine()
+    staging_map = {
+        "customers": "stg_customers",
+        "products": "stg_products",
+        "sellers": "stg_sellers",
+        "orders": "stg_orders",
+        "order_items": "stg_order_items",
+        "order_payments": "stg_order_payments",
+    }
+
+    data: dict[str, pd.DataFrame] = {}
+    with stg_engine.connect() as conn:
+        for entity, stg_table in staging_map.items():
+            df = pd.read_sql(f"SELECT * FROM `{stg_table}`", conn)
+            # Pulihkan kolom source_country dari _source_country
+            if "_source_country" in df.columns:
+                df["source_country"] = df["_source_country"]
+                df = df.drop(columns=["_source_country"])
+            if "_stg_id" in df.columns:
+                df = df.drop(columns=["_stg_id"])
+            if "_extracted_at" in df.columns:
+                df = df.drop(columns=["_extracted_at"])
+            data[entity] = df
+            logger.info(f"  -> {len(df):,} baris diekstrak dari `{stg_table}`")
+
+    return data
 
 
 def main():

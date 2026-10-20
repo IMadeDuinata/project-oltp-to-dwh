@@ -12,6 +12,7 @@ cryptography
 python-dotenv
 apscheduler
 pytest
+rich
 
 # Dashboard & Visualitation
 streamlit

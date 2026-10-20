@@ -25,13 +25,15 @@ dist/
 Thumbs.db
 .DS_Store
 
-# Data (CSV besar — tidak di-commit)
+# Data
 data/*.csv
 data/*.zip
 # Devenv
 .devenv*
 devenv.local.nix
 devenv.local.yaml
+# Report
+reports/
 
 # direnv
 .direnv
@@ -41,3 +43,4 @@ devenv.local.yaml
 
 # utlis
 .tgrep
+graphify-out/

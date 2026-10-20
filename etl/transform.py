@@ -36,7 +36,13 @@ def build_dim_customer(df_customers: pd.DataFrame) -> pd.DataFrame:
     """
     logger.info("Transforming dim_customer (SCD Type 2)...")
     df = df_customers.copy()
-    
+
+    # Hapus baris yang customer_unique_id null (karakteristik data ID) — tidak bisa masuk SCD2
+    null_cuid_count = df["customer_unique_id"].isna().sum()
+    if null_cuid_count > 0:
+        logger.warning(f"  -> Melewati {null_cuid_count:,} baris customer dengan customer_unique_id NULL (tidak bisa masuk dim_customer)")
+        df = df[df["customer_unique_id"].notna()].copy()
+
     # Ambil baris unik per customer_unique_id
     df_dedup = df.drop_duplicates(subset=["customer_unique_id"]).copy()
     
@@ -141,7 +147,7 @@ def build_dim_payment_type(df_payments: pd.DataFrame) -> pd.DataFrame:
     return dim
 
 
-def build_dim_date(start_date="2016-01-01", end_date="2020-12-31") -> pd.DataFrame:
+def build_dim_date(start_date="2016-01-01", end_date="2025-12-31") -> pd.DataFrame:
     """Membangun dim_date (kalender) dengan date_sk format YYYYMMDD dan UNKNOWN (-1)."""
     logger.info("Transforming dim_date...")
     dates = pd.date_range(start=start_date, end=end_date, freq="D")
@@ -228,6 +234,7 @@ def build_fact_order_items(
         "price",
         "freight_value",
         "total_item_value",
+        "source_country",
     ]
     return df[fact_cols].copy()
 
@@ -280,6 +287,7 @@ def build_fact_order_delivery(
         "estimated_delivery_days",
         "delivery_delay_days",
         "is_delayed",
+        "source_country",
     ]
     return df[fact_cols].copy()
 
@@ -323,5 +331,6 @@ def build_fact_order_payments(
         "purchase_date_sk",
         "payment_value",
         "payment_installments",
+        "source_country",
     ]
     return df[fact_cols].copy()

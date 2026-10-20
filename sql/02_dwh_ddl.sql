@@ -16,12 +16,12 @@ CREATE TABLE IF NOT EXISTS dim_customer (
     customer_unique_id VARCHAR(50) NOT NULL,
     customer_zip_code  VARCHAR(10),
     customer_city      VARCHAR(100),
-    customer_state     VARCHAR(10),
+    customer_state     VARCHAR(100),
     valid_from         DATETIME NOT NULL DEFAULT '1970-01-01 00:00:00',
     valid_to           DATETIME DEFAULT NULL,
     is_current         TINYINT(1) NOT NULL DEFAULT 1,
     INDEX idx_dc_cust_id (customer_id),
-    UNIQUE KEY uk_customer_unique (customer_unique_id),
+    INDEX idx_dc_unique_id (customer_unique_id),
     INDEX idx_dc_state (customer_state)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS dim_seller (
     seller_id       VARCHAR(50) NOT NULL,
     seller_zip_code VARCHAR(10),
     seller_city     VARCHAR(100),
-    seller_state    VARCHAR(10),
+    seller_state    VARCHAR(100),
     UNIQUE KEY uk_seller_id (seller_id),
     INDEX idx_ds_state (seller_state)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -104,7 +104,8 @@ CREATE TABLE IF NOT EXISTS fact_order_items (
     CONSTRAINT fk_foi_product  FOREIGN KEY (product_sk)  REFERENCES dim_product(product_sk),
     CONSTRAINT fk_foi_seller   FOREIGN KEY (seller_sk)   REFERENCES dim_seller(seller_sk),
     CONSTRAINT fk_foi_pdate    FOREIGN KEY (purchase_date_sk) REFERENCES dim_date(date_sk),
-    CONSTRAINT fk_foi_sdate    FOREIGN KEY (shipping_limit_date_sk) REFERENCES dim_date(date_sk)
+    CONSTRAINT fk_foi_sdate    FOREIGN KEY (shipping_limit_date_sk) REFERENCES dim_date(date_sk),
+    source_country             VARCHAR(5) NOT NULL DEFAULT 'BR'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Fact 2: fact_order_delivery
@@ -130,7 +131,8 @@ CREATE TABLE IF NOT EXISTS fact_order_delivery (
     CONSTRAINT fk_fod_customer FOREIGN KEY (customer_sk) REFERENCES dim_customer(customer_sk),
     CONSTRAINT fk_fod_pdate    FOREIGN KEY (purchase_date_sk) REFERENCES dim_date(date_sk),
     CONSTRAINT fk_fod_ddate    FOREIGN KEY (delivered_date_sk) REFERENCES dim_date(date_sk),
-    CONSTRAINT fk_fod_edate    FOREIGN KEY (estimated_date_sk) REFERENCES dim_date(date_sk)
+    CONSTRAINT fk_fod_edate    FOREIGN KEY (estimated_date_sk) REFERENCES dim_date(date_sk),
+    source_country             VARCHAR(5) NOT NULL DEFAULT 'BR'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Fact 3: fact_order_payments
@@ -153,6 +155,7 @@ CREATE TABLE IF NOT EXISTS fact_order_payments (
     UNIQUE KEY uk_fop_grain (order_id, payment_sequential),
     CONSTRAINT fk_fop_customer FOREIGN KEY (customer_sk)       REFERENCES dim_customer(customer_sk),
     CONSTRAINT fk_fop_paytype  FOREIGN KEY (payment_type_sk)   REFERENCES dim_payment_type(payment_type_sk),
-    CONSTRAINT fk_fop_date     FOREIGN KEY (purchase_date_sk)  REFERENCES dim_date(date_sk)
+    CONSTRAINT fk_fop_date     FOREIGN KEY (purchase_date_sk)  REFERENCES dim_date(date_sk),
+    source_country             VARCHAR(5) NOT NULL DEFAULT 'BR'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

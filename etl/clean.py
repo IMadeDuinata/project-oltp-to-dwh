@@ -63,6 +63,21 @@ def clean_null_handling(df_products: pd.DataFrame, df_orders: pd.DataFrame) -> t
     df_prod_clean["product_category_name"] = df_prod_clean["product_category_name"].fillna("unknown")
     logger.info(f"  -> Imputasi product_category_name 'unknown': {null_cat_count:,} baris")
 
+    # Normalisasi product_category_name hanya untuk ID: lowercase + underscore
+    if "source_country" in df_prod_clean.columns:
+        is_id = df_prod_clean["source_country"] == "ID"
+        # Simpan original dulu jika belum ada
+        if "product_category_name_original" in df_prod_clean.columns:
+            # Hanya update original untuk ID yang belum punya nilai original
+            no_orig = is_id & df_prod_clean["product_category_name_original"].isna()
+            df_prod_clean.loc[no_orig, "product_category_name_original"] = \
+                df_prod_clean.loc[no_orig, "product_category_name"]
+        # Normalize
+        df_prod_clean.loc[is_id, "product_category_name"] = (
+            df_prod_clean.loc[is_id, "product_category_name"]
+            .astype(str).str.strip().str.lower().str.replace(r"\s+", "_", regex=True)
+        )
+
     # Imputasi ukuran produk yang kosong dengan 0
     size_cols = ["product_weight_g", "product_length_cm", "product_height_cm", "product_width_cm", "product_photos_qty"]
     for sc in size_cols:
@@ -107,13 +122,25 @@ def clean_deduplication(
     # Normalisasi teks customer
     df_cust = df_customers.copy()
     df_cust["customer_city"] = df_cust["customer_city"].astype(str).str.strip().str.lower()
-    df_cust["customer_state"] = df_cust["customer_state"].astype(str).str.strip().str.upper()
+    # BR: UF 2-huruf → uppercase. ID: nama provinsi → preserve case, hanya strip
+    # Fallback: jika kolom source_country tidak ada, treat semua sebagai BR
+    if "source_country" in df_cust.columns:
+        is_br_cust = df_cust["source_country"] == "BR"
+    else:
+        is_br_cust = pd.Series(True, index=df_cust.index)
+    df_cust.loc[is_br_cust, "customer_state"] = df_cust.loc[is_br_cust, "customer_state"].astype(str).str.strip().str.upper()
+    df_cust.loc[~is_br_cust, "customer_state"] = df_cust.loc[~is_br_cust, "customer_state"].astype(str).str.strip()
     df_cust_clean = df_cust.drop_duplicates(subset=["customer_id"]).copy()
 
     # Normalisasi teks seller
     df_sell = df_sellers.copy()
     df_sell["seller_city"] = df_sell["seller_city"].astype(str).str.strip().str.lower()
-    df_sell["seller_state"] = df_sell["seller_state"].astype(str).str.strip().str.upper()
+    if "source_country" in df_sell.columns:
+        is_br_sell = df_sell["source_country"] == "BR"
+    else:
+        is_br_sell = pd.Series(True, index=df_sell.index)
+    df_sell.loc[is_br_sell, "seller_state"] = df_sell.loc[is_br_sell, "seller_state"].astype(str).str.strip().str.upper()
+    df_sell.loc[~is_br_sell, "seller_state"] = df_sell.loc[~is_br_sell, "seller_state"].astype(str).str.strip()
     df_sell_clean = df_sell.drop_duplicates(subset=["seller_id"]).copy()
 
     # Cek Duplikasi pada order_items
@@ -201,8 +228,12 @@ def clean_bad_business_logic(df_orders: pd.DataFrame, df_items: pd.DataFrame) ->
         )
     )
 
-    # 3. status == 'delivered' tapi delivered_date null
-    mask_deliv_null = (df_ord["order_status"] == "delivered") & (df_ord["order_delivered_customer_date"].isna())
+    # 3. status == 'delivered' tapi delivered_date null — hanya untuk BR
+    mask_deliv_null = (
+        (df_ord["order_status"] == "delivered")
+        & (df_ord["order_delivered_customer_date"].isna())
+        & (df_ord.get("source_country", pd.Series("BR", index=df_ord.index)) == "BR")
+    )
     rej_deliv_null = df_ord[mask_deliv_null]
     rejections.extend(
         record_rejections(
@@ -213,8 +244,12 @@ def clean_bad_business_logic(df_orders: pd.DataFrame, df_items: pd.DataFrame) ->
         )
     )
 
-    # 4. status == 'canceled' tapi delivered_date NOT null
-    mask_canc_deliv = (df_ord["order_status"] == "canceled") & (df_ord["order_delivered_customer_date"].notna())
+    # 4. status == 'canceled' tapi delivered_date NOT null — hanya untuk BR
+    mask_canc_deliv = (
+        (df_ord["order_status"] == "canceled")
+        & (df_ord["order_delivered_customer_date"].notna())
+        & (df_ord.get("source_country", pd.Series("BR", index=df_ord.index)) == "BR")
+    )
     rej_canc_deliv = df_ord[mask_canc_deliv]
     rejections.extend(
         record_rejections(
@@ -316,6 +351,22 @@ def clean_domain_validation_and_shift(df_orders: pd.DataFrame, df_payments: pd.D
     )
     df_pay_clean = df_pay[~mask_invalid_pay].copy()
     logger.info(f"  -> Ditolak order_payments karena payment_type tidak valid / shift: {len(rej_pay):,} baris")
+
+    # Validasi payment_value < 0 (karakteristik data kotor ID)
+    # Hanya jalankan jika kolom payment_value ada (bisa tidak ada di data test minimal)
+    if "payment_value" in df_pay_clean.columns:
+        mask_neg_pay = df_pay_clean["payment_value"] < 0
+        rej_neg_pay = df_pay_clean[mask_neg_pay]
+        rejections.extend(
+            record_rejections(
+                rej_neg_pay,
+                table_source="order_payments",
+                column_name="payment_value",
+                reason="negative payment_value"
+            )
+        )
+        df_pay_clean = df_pay_clean[~mask_neg_pay].copy()
+        logger.info(f"  -> Ditolak order_payments karena payment_value negatif: {len(rej_neg_pay):,} baris")
 
     return df_ord_clean, df_pay_clean, rejections
 

@@ -94,7 +94,8 @@ CREATE TABLE IF NOT EXISTS orders (
     order_delivered_customer_date VARCHAR(50),
     order_estimated_delivery_date VARCHAR(50),
     INDEX idx_ord_cust (customer_id),
-    INDEX idx_ord_status (order_status)
+    INDEX idx_ord_status (order_status),
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ORDER_ITEMS
@@ -107,7 +108,10 @@ CREATE TABLE IF NOT EXISTS order_items (
     shipping_limit_date VARCHAR(50),  -- VARCHAR juga
     price               VARCHAR(50),  -- VARCHAR: bisa negatif / outlier
     freight_value       VARCHAR(50),
-    INDEX idx_item_order (order_id)
+    INDEX idx_item_order (order_id),
+    FOREIGN KEY (order_id) REFERENCES orders(order_id),
+    FOREIGN KEY (product_id) REFERENCES products(product_id),
+    FOREIGN KEY (seller_id) REFERENCES sellers(seller_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ORDER_PAYMENTS
@@ -118,7 +122,8 @@ CREATE TABLE IF NOT EXISTS order_payments (
     payment_type         VARCHAR(50),
     payment_installments INT,
     payment_value        VARCHAR(50),  -- VARCHAR: bisa negatif
-    INDEX idx_pay_order (order_id)
+    INDEX idx_pay_order (order_id),
+    FOREIGN KEY (order_id) REFERENCES orders(order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ORDER_REVIEWS
@@ -131,7 +136,8 @@ CREATE TABLE IF NOT EXISTS order_reviews (
     review_comment_message   TEXT,
     review_creation_date     VARCHAR(50),
     review_answer_timestamp  VARCHAR(50),
-    INDEX idx_rev_order (order_id)
+    INDEX idx_rev_order (order_id),
+    FOREIGN KEY (order_id) REFERENCES orders(order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- GEOLOCATION

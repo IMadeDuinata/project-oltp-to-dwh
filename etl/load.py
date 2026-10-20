@@ -153,7 +153,8 @@ def upsert_dim_customer_scd2(df_incoming: pd.DataFrame) -> None:
 
     for _, row in normal_df.iterrows():
         cuid = row.get("customer_unique_id", "")
-        if not cuid or cuid == "UNKNOWN":
+        # Skip baris dengan customer_unique_id null/None/NaN/kosong/UNKNOWN
+        if not cuid or cuid == "UNKNOWN" or (hasattr(cuid, '__class__') and pd.isna(cuid)):
             continue
 
         incoming_vals = {
@@ -212,9 +213,15 @@ def upsert_dim_customer_scd2(df_incoming: pd.DataFrame) -> None:
 
         # Insert baris baru
         if to_insert:
+            df_new = pd.DataFrame(to_insert)
+            to_insert_records = [
+                {k: (None if (v is not None and pd.isna(v)) else v) for k, v in row.items()}
+                for row in df_new.to_dict(orient="records")
+            ]
+
             chunk_size = 3000
-            for i in range(0, len(to_insert), chunk_size):
-                chunk = to_insert[i:i + chunk_size]
+            for i in range(0, len(to_insert_records), chunk_size):
+                chunk = to_insert_records[i:i + chunk_size]
                 conn.execute(text("""
                     INSERT INTO dim_customer
                     (customer_id, customer_unique_id, customer_zip_code, customer_city, customer_state,
@@ -227,12 +234,15 @@ def upsert_dim_customer_scd2(df_incoming: pd.DataFrame) -> None:
     logger.info(f"  -> Selesai SCD2 upsert `dim_customer`")
 
 
-def load_all_dimensions(dimensions: dict) -> dict:
+def load_all_dimensions(dimensions: dict, on_progress=None) -> dict:
     """Memuat seluruh tabel dimensi dan mengembalikan map Business Key -> Surrogate Key."""
     logger.info("Memuat seluruh tabel dimensi ke DWH...")
     engine = get_dwh_engine()
+    total_dims = 5
 
     # 1. Dim Date
+    if on_progress:
+        on_progress("dim_date", 1, total_dims)
     if "dim_date" in dimensions:
         df_date = dimensions["dim_date"]
         with engine.begin() as conn:
@@ -245,18 +255,26 @@ def load_all_dimensions(dimensions: dict) -> dict:
         logger.info(f"  -> dim_date siap ({len(df_date):,} baris)")
 
     # 2. Dim Customer (SCD Type 2 — versi nyata)
+    if on_progress:
+        on_progress("dim_customer", 2, total_dims)
     if "dim_customer" in dimensions:
         upsert_dim_customer_scd2(dimensions["dim_customer"])
 
     # 3. Dim Product
+    if on_progress:
+        on_progress("dim_product", 3, total_dims)
     if "dim_product" in dimensions:
         upsert_dimension("dim_product", dimensions["dim_product"], key_col="product_id", sk_col="product_sk")
 
     # 4. Dim Seller
+    if on_progress:
+        on_progress("dim_seller", 4, total_dims)
     if "dim_seller" in dimensions:
         upsert_dimension("dim_seller", dimensions["dim_seller"], key_col="seller_id", sk_col="seller_sk")
 
     # 5. Dim Payment Type
+    if on_progress:
+        on_progress("dim_payment_type", 5, total_dims)
     if "dim_payment_type" in dimensions:
         upsert_dimension("dim_payment_type", dimensions["dim_payment_type"], key_col="payment_type", sk_col="payment_type_sk")
 
@@ -444,7 +462,7 @@ def log_etl_execution(
             "rows_clean": rows_clean,
             "rows_rejected": rows_rejected,
             "rows_loaded": rows_loaded,
-            "error_message": error_message,
+            "error_message": error_message[:250] if error_message else None,
             "table_stats_json": table_stats_json,
         })
     logger.info(f"Audit log ETL dicatat ke etl_log (status={status}).")

@@ -119,3 +119,33 @@ CREATE TABLE IF NOT EXISTS order_payments (
     INDEX idx_pay_order (order_id),
     INDEX idx_pay_type (payment_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ORDER_REVIEWS
+CREATE TABLE IF NOT EXISTS order_reviews (
+    review_internal_id      BIGINT AUTO_INCREMENT PRIMARY KEY,
+    review_id               VARCHAR(50),
+    order_id                VARCHAR(50) NOT NULL,
+    review_score            INT,
+    review_comment_title    VARCHAR(255),
+    review_comment_message  TEXT,
+    review_creation_date    DATETIME,
+    review_answer_timestamp DATETIME,
+    INDEX idx_rev_order (order_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- GEOLOCATION
+CREATE TABLE IF NOT EXISTS geolocation (
+    geo_id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    zip_code_prefix VARCHAR(10),
+    geolocation_lat DECIMAL(15,10),
+    geolocation_lng DECIMAL(15,10),
+    city            VARCHAR(100),
+    state           VARCHAR(10),
+    INDEX idx_geo_zip (zip_code_prefix)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- CATEGORY_TRANSLATION
+CREATE TABLE IF NOT EXISTS category_translation (
+    product_category_name         VARCHAR(100) PRIMARY KEY,
+    product_category_name_english VARCHAR(100)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
